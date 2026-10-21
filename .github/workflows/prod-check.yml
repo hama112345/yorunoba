@@ -1,0 +1,40 @@
+name: 本番確認
+
+# 公開中の店（Render）に、2人入店→移動同期のE2Eを流す。
+# mainへの反映後、Renderのデプロイが終わってから手動（またはClaude Code）で実行する。
+on:
+  workflow_dispatch:
+
+env:
+  PROD_URL: https://yorunoba.onrender.com
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 店が起きるまで待つ（無料プランは15分で眠るため、最大5分）
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS "$PROD_URL/healthz" && exit 0
+            sleep 10
+          done
+          echo "店が起きませんでした" && exit 1
+      - name: 公開中の店でE2E（2人入店して移動が同期されるか）
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+        env:
+          E2E_BASE_URL: ${{ env.PROD_URL }}
+      - name: スクリーンショットを保存
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: prod-e2e-results
+          path: test-results/
+          retention-days: 7

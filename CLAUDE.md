@@ -19,7 +19,8 @@
 ## ブランチと公開の流れ
 - 開発は `claude/...` ブランチで行い、pushしてGitHub ActionsのCIが**緑になってから**、同じコミットを `main` に反映する（fast-forward。オーナー了承済み）。
 - `main` へのpushでRenderが自動デプロイする（`render.yaml`）。`main` = 公開中の店なので、赤いコミットは載せない。
-- 反映後は、公開URLに対して `E2E_BASE_URL=… npm run test:e2e` で確認する。
+- 反映後は、Renderのデプロイが終わってから、GitHub Actionsの「本番確認」（`prod-check.yml`、手動実行）で公開中の店にE2Eを流す。
+  - 開発環境から `https://yorunoba.onrender.com` に届く場合は、`E2E_BASE_URL=https://yorunoba.onrender.com npm run test:e2e` でもよい。
 - CIの結果はGitHub連携ツール（`actions_list` / `get_job_logs`）で確認する。リポジトリは非公開の場合があり、認証なしの公開APIでは読めない。
 
 ## 構成
