@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { avatars, bubbles, enter, seats, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
+import { avatars, bringIntoView, bubbles, enter, seats, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
 
 test("吹き出しで話し、ワンタップで反応し、席に座れる", async ({ browser, request }, testInfo) => {
   await waitForEmptyShop(request);
@@ -38,6 +38,7 @@ test("吹き出しで話し、ワンタップで反応し、席に座れる", as
   // （人と同じく、吹き出しが出きってからタップする）
   await expect.poll(async () => (await bubbles(bob)).find((b) => b.text.startsWith("こんばんは"))?.alpha).toBe(1);
   const bubble = (await bubbles(bob)).find((b) => b.text.startsWith("こんばんは"))!;
+  await bringIntoView(bob, bubble.x, bubble.y);
   await tapWorld(bob, bubble.x, bubble.y);
   await bob.getByTestId("reaction-picker").getByRole("menuitem", { name: "わかる" }).click();
   await expect

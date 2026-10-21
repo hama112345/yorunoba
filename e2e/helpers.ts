@@ -29,3 +29,19 @@ export async function tapWorld(page: Page, x: number, y: number) {
   const pos = await page.evaluate(({ x, y }) => window.__yorunoba!.worldToScreen(x, y), { x, y });
   await page.mouse.click(pos.x, pos.y);
 }
+
+/**
+ * 相手が画面の外（またはボタンや会話欄の下）にいたら、人と同じようにそちらへ歩いて画面に入れる。
+ * スマホ縦はカメラが自分を追いかけるので、出現位置によっては相手が見えないことがある
+ */
+export async function bringIntoView(page: Page, x: number, y: number) {
+  const vp = page.viewportSize()!;
+  for (let i = 0; i < 6; i++) {
+    const p = await page.evaluate(({ x, y }) => window.__yorunoba!.worldToScreen(x, y), { x, y });
+    // 上はHUDと常連パス・誘うボタン、下は会話欄があるので避ける
+    const [top, bottom] = [110, vp.height - 150];
+    if (p.x > 30 && p.x < vp.width - 30 && p.y > top && p.y < bottom) return;
+    await page.mouse.click(Math.min(Math.max(p.x, 40), vp.width - 40), Math.min(Math.max(p.y, top + 10), bottom - 10));
+    await page.waitForTimeout(800);
+  }
+}

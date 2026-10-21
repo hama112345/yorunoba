@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import { avatars, bubbles, enter, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
+import { avatars, bringIntoView, bubbles, enter, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
 
 /** 相手のアバターをタップして名札カードを開き、通報する */
 async function report(page: Page, targetId: string, targetName: string) {
   const target = (await avatars(page)).find((a) => a.id === targetId)!;
+  await bringIntoView(page, target.x, target.y);
   page.once("dialog", (d) => d.accept()); // 「通報しますか？」の確認
   await tapWorld(page, target.x, target.y);
   const card = page.getByRole("dialog");
