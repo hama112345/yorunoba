@@ -2,6 +2,7 @@ name: 本番確認
 
 # 公開中の店（Render）に、2人入店→移動同期のE2Eを流す。
 # mainへの反映後、Renderのデプロイが終わってから手動（またはClaude Code）で実行する。
+# 営業時間の入店禁止（SHOP_HOURS_ENFORCED=true）を有効にした後は、営業時間中（日本時間21〜24時）に実行する。
 on:
   workflow_dispatch:
 
@@ -21,12 +22,14 @@ jobs:
       - name: 店が起きて、このコミットの版に入れ替わるまで待つ（無料プランの目覚め＋デプロイで最大12分）
         run: |
           for i in $(seq 1 72); do
-            version=$(curl -fsS "$PROD_URL/healthz" | jq -r .version || true)
+            version=$(curl -fsS --max-time 30 "$PROD_URL/healthz" | jq -r '.version // "（版の記録なし＝bb8919cより前の古い版）"' || true)
             echo "公開中の版: ${version:-（応答なし）} / 確認したい版: $GITHUB_SHA"
             [ "$version" = "$GITHUB_SHA" ] && exit 0
             sleep 10
           done
-          echo "このコミットの版になりませんでした（Renderのデプロイを確認してください）" && exit 1
+          echo "このコミットの版になりませんでした。Renderの画面で、このサービスの「Events」（デプロイの成否）と"
+          echo "「Settings → Build & Deploy」（つながっているリポジトリ・ブランチ・Auto-Deploy）を確認してください。"
+          exit 1
       - name: 公開中の店でE2E（2人入店して移動が同期されるか）
         run: |
           npx playwright install --with-deps chromium
