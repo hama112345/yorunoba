@@ -44,6 +44,9 @@
         white-space: nowrap;
       }
       #status[data-state="error"] { border-color: var(--danger); color: #ffd2c4; }
+      #hud .right { display: flex; gap: 6px; align-items: center; }
+      #hud .sound { pointer-events: auto; cursor: pointer; color: var(--text); font-size: 14px; }
+      #hud .sound[hidden] { display: none; }
       .brand { color: var(--accent); font-weight: 700; letter-spacing: 0.08em; }
 
       /* 入店画面（のれんの前）。店の絵が透けて見えるように半透明 */
@@ -268,7 +271,10 @@
     <div id="game"></div>
     <div id="hud">
       <span class="pill"><span class="brand">ヨルノバ</span> 1号店</span>
-      <span class="pill" id="status" data-state="waiting">のれんの前</span>
+      <span class="right">
+        <button type="button" class="pill sound" id="sound" hidden aria-label="店内の音">🔊</button>
+        <span class="pill" id="status" data-state="waiting">のれんの前</span>
+      </span>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

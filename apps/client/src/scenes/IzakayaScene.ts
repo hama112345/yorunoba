@@ -11,9 +11,10 @@ import {
 } from "@yorunoba/shared";
 import Phaser from "phaser";
 import { ASSETS } from "../assets";
+import { DPR } from "../display";
 import type { IzakayaRoom } from "../net/connection";
 import { Avatar } from "../objects/Avatar";
-import { drawIzakaya } from "../objects/izakayaDecor";
+import { drawIzakaya, lanternPositions } from "../objects/izakayaDecor";
 import { SpeechBubble } from "../objects/SpeechBubble";
 import { showGuests } from "../ui/hud";
 import { closeGuestCard } from "../ui/guestCard";
@@ -23,12 +24,18 @@ import { closeReactionPicker, showReactionPicker } from "../ui/reactionPicker";
 const READABLE_ZOOM = 0.8;
 /** 画面下の会話欄のぶん、店全体を映すときは少し上に寄せる（px） */
 const CHAT_BAR_SPACE = 120;
+/** 店の明るさ：1人だと少し落ち着いた灯り、10人以上で一番明るい（賑わいが目で分かるように） */
+const DIM_TINT = { r: 0xc4, g: 0xb2, b: 0xb0 };
+const FULL_GUESTS = 10;
 
 export class IzakayaScene extends Phaser.Scene {
   private room?: IzakayaRoom;
   private avatars = new Map<string, Avatar>();
   /** 画面に出ている吹き出し（吹き出し番号 → 吹き出し）。消えたものは自動で外れる */
   private bubbles = new Map<number, SpeechBubble>();
+  /** 店の背景（人数に応じて照明の色を変える） */
+  private roomBg!: Phaser.GameObjects.Image;
+  private brightness = { t: 0 };
 
   constructor() {
     super("izakaya");
@@ -36,11 +43,11 @@ export class IzakayaScene extends Phaser.Scene {
 
   create() {
     const bg = ASSETS.izakayaBackground;
-    if (this.textures.exists(bg.key)) {
-      this.add.image(0, 0, bg.key).setOrigin(0).setDepth(-1000);
-    } else {
-      drawIzakaya(this);
-    }
+    this.roomBg = this.textures.exists(bg.key)
+      ? this.add.image(0, 0, bg.key).setOrigin(0).setDepth(-1000)
+      : drawIzakaya(this);
+    this.addLanternGlows();
+    this.applyBrightness(0);
 
     this.layoutCamera();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.layoutCamera, this);
@@ -86,12 +93,12 @@ export class IzakayaScene extends Phaser.Scene {
         if (!isSelf) avatar.walkTo(player.x, player.y);
       });
       if (isSelf) this.layoutCamera();
-      showGuests(this.avatars.size);
+      this.onGuestsChanged();
     });
     callbacks.onRemove("players", (_player, sessionId) => {
       this.avatars.get(sessionId)?.destroy();
       this.avatars.delete(sessionId);
-      showGuests(this.avatars.size);
+      this.onGuestsChanged();
     });
 
     room.onMessage(EVT.chat, (e: ChatEvent) => this.showBubble(e));
@@ -142,6 +149,58 @@ export class IzakayaScene extends Phaser.Scene {
     }
   }
 
+  /** 人数が変わったら：右上の人数、店の明るさ、音（main.ts が "guests" を聞いている） */
+  private onGuestsChanged() {
+    const count = this.avatars.size;
+    showGuests(count);
+    this.game.events.emit("guests", count);
+    const target = Math.min(1, (count - 1) / (FULL_GUESTS - 1));
+    this.tweens.add({
+      targets: this.brightness,
+      t: target,
+      duration: 1500,
+      onUpdate: () => this.applyBrightness(this.brightness.t),
+    });
+  }
+
+  private applyBrightness(t: number) {
+    const mix = (dim: number) => Math.round(dim + (0xff - dim) * t);
+    this.roomBg.setTint(Phaser.Display.Color.GetColor(mix(DIM_TINT.r), mix(DIM_TINT.g), mix(DIM_TINT.b)));
+  }
+
+  /** 提灯のまわりに、ゆらゆら揺れる暖かい光を重ねる（小さな画像なので軽い） */
+  private addLanternGlows() {
+    if (!this.textures.exists("glow")) {
+      const size = 128;
+      const canvas = this.textures.createCanvas("glow", size, size)!;
+      const ctx = canvas.getContext();
+      const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+      canvas.refresh();
+    }
+    for (const p of lanternPositions()) {
+      const glow = this.add
+        .image(p.x, p.y, "glow")
+        .setTint(0xff9a3c)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setScale(1.3)
+        .setAlpha(0.35)
+        .setDepth(-990);
+      this.tweens.add({
+        targets: glow,
+        alpha: { from: 0.25, to: 0.45 },
+        scale: { from: 1.2, to: 1.35 },
+        duration: 900 + Math.random() * 900,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.InOut",
+      });
+    }
+  }
+
   update(_time: number, delta: number) {
     for (const avatar of this.avatars.values()) avatar.step(delta);
   }
@@ -153,7 +212,9 @@ export class IzakayaScene extends Phaser.Scene {
    */
   private layoutCamera() {
     const cam = this.cameras.main;
-    const { width, height } = this.scale.gameSize;
+    // 計算は画面上の大きさ（CSSのpx）で行い、最後に画面の細かさ（DPR）を掛ける
+    const width = this.scale.gameSize.width / DPR;
+    const height = this.scale.gameSize.height / DPR;
     // 入店後は画面下に会話欄が出るので、そのぶんを除いた高さで考える
     const bottom = this.room ? CHAT_BAR_SPACE : 0;
     const fitWithBar = Math.min(width / FLOOR.width, (height - bottom) / FLOOR.height);
@@ -161,14 +222,14 @@ export class IzakayaScene extends Phaser.Scene {
       // 店が画面より小さく映るので、端に寄らないよう境界を外して（会話欄の上の）真ん中に置く
       cam.stopFollow();
       cam.removeBounds();
-      cam.setZoom(fitWithBar);
+      cam.setZoom(fitWithBar * DPR);
       cam.centerOn(FLOOR.width / 2, FLOOR.height / 2 + bottom / 2 / fitWithBar);
       return;
     }
 
     // 追いかけるときは、店の外（何もない所）を映さないよう境界を付ける
     cam.setBounds(0, 0, FLOOR.width, FLOOR.height);
-    cam.setZoom(Math.min(READABLE_ZOOM, height / FLOOR.height));
+    cam.setZoom(Math.min(READABLE_ZOOM, height / FLOOR.height) * DPR);
     const self = this.room && this.avatars.get(this.room.sessionId);
     if (self) {
       cam.startFollow(self, true, 0.12, 0.12);
@@ -217,8 +278,8 @@ export class IzakayaScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const rect = this.game.canvas.getBoundingClientRect();
     return {
-      x: rect.left + cam.x + (x - cam.worldView.x) * cam.zoom,
-      y: rect.top + cam.y + (y - cam.worldView.y) * cam.zoom,
+      x: rect.left + (cam.x + (x - cam.worldView.x) * cam.zoom) / DPR,
+      y: rect.top + (cam.y + (y - cam.worldView.y) * cam.zoom) / DPR,
     };
   }
 

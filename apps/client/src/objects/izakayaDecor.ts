@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { TEXT_RESOLUTION } from "../display";
 import { BACK_WALL_HEIGHT, COUNTER, COUNTER_SEATS, ENTRANCE, FLOOR, TABLES, TABLE_SEATS } from "@yorunoba/shared";
 
 // 素材を買うまでの仮の内装。図形だけで「それっぽい居酒屋」を描く。
@@ -14,7 +15,19 @@ const MENU_ITEMS = ["生ビール", "やきとり", "枝豆", "冷やっこ", "�
 
 const vertical = (s: string) => s.split("").join("\n");
 
-export function drawIzakaya(scene: Phaser.Scene) {
+/** 提灯の位置（揺らめく灯りを重ねるために外からも使う） */
+export function lanternPositions() {
+  const { width, height, wall } = FLOOR;
+  return [
+    { x: wall + 22, y: BACK_WALL_HEIGHT + 30 },
+    { x: width - wall - 22, y: BACK_WALL_HEIGHT + 30 },
+    { x: ENTRANCE.x - 26, y: height - wall - 18 },
+    { x: ENTRANCE.x + ENTRANCE.w + 26, y: height - wall - 18 },
+  ];
+}
+
+/** 仮の内装を描いて、店全体の画像（照明の色を変えられる）を返す */
+export function drawIzakaya(scene: Phaser.Scene): Phaser.GameObjects.Image {
   const g = scene.make.graphics({}, false);
   const { width, height, wall } = FLOOR;
 
@@ -42,6 +55,7 @@ export function drawIzakaya(scene: Phaser.Scene) {
     g.fillStyle(0xf3ead8).fillRect(x, 12, 34, 92);
     scene.add
       .text(x + 17, 18, vertical(item), {
+        resolution: TEXT_RESOLUTION,
         fontFamily: "serif",
         fontSize: "13px",
         color: "#2a1912",
@@ -64,7 +78,7 @@ export function drawIzakaya(scene: Phaser.Scene) {
     const x = ENTRANCE.x + i * flapW;
     g.fillStyle(0x23305a).fillRect(x + 2, height - wall - 6, flapW - 4, 34);
     scene.add
-      .text(x + flapW / 2, height - wall + 10, ch, { fontFamily: "serif", fontSize: "16px", color: "#f6eadb" })
+      .text(x + flapW / 2, height - wall + 10, ch, { resolution: TEXT_RESOLUTION, fontFamily: "serif", fontSize: "16px", color: "#f6eadb" })
       .setOrigin(0.5)
       .setDepth(height);
   });
@@ -95,12 +109,7 @@ export function drawIzakaya(scene: Phaser.Scene) {
   }
 
   // 灯りのにじみ（提灯と天井の明かり）。別の層にすると毎フレームの描画が重くなるので、同じ画像に焼き込む
-  const lanterns = [
-    { x: wall + 22, y: BACK_WALL_HEIGHT + 30 },
-    { x: width - wall - 22, y: BACK_WALL_HEIGHT + 30 },
-    { x: ENTRANCE.x - 26, y: height - wall - 18 },
-    { x: ENTRANCE.x + ENTRANCE.w + 26, y: height - wall - 18 },
-  ];
+  const lanterns = lanternPositions();
   for (let x = 200; x <= 760; x += 280) {
     for (let r = 220; r > 0; r -= 30) g.fillStyle(0xffc070, 0.018).fillCircle(x, 300, r);
   }
@@ -113,12 +122,12 @@ export function drawIzakaya(scene: Phaser.Scene) {
     g.fillStyle(0xc0392b).fillEllipse(l.x, l.y, 26, 34);
     g.fillStyle(0x1a1220).fillRect(l.x - 7, l.y - 19, 14, 4).fillRect(l.x - 7, l.y + 15, 14, 4);
     scene.add
-      .text(l.x, l.y, "酒", { fontFamily: "serif", fontSize: "14px", color: "#ffe9c7" })
+      .text(l.x, l.y, "酒", { resolution: TEXT_RESOLUTION, fontFamily: "serif", fontSize: "14px", color: "#ffe9c7" })
       .setOrigin(0.5)
       .setDepth(-997);
   }
 
-  bake(scene, g, "izakaya-decor").setDepth(-1000);
+  return bake(scene, g, "izakaya-decor").setDepth(-1000);
 }
 
 /** 描いた図形を店の大きさの画像にして、元の図形は捨てる */

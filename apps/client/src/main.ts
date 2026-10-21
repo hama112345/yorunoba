@@ -1,5 +1,7 @@
 import { EVT, MSG, type ChatEvent, type JailedEvent, type NoticeEvent } from "@yorunoba/shared";
 import Phaser from "phaser";
+import { startAmbience } from "./audio/ambience";
+import { DPR } from "./display";
 import { fetchStatus, joinIzakaya, loadProfile, saveProfile } from "./net/connection";
 import { BootScene } from "./scenes/BootScene";
 import { IzakayaScene } from "./scenes/IzakayaScene";
@@ -28,12 +30,15 @@ const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
   backgroundColor: "#1a1220",
-  scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
+  // 画面の細かさ（DPR）倍の大きさで描いて、1/DPR に縮めて表示する（文字がにじまないように）
+  scale: { mode: Phaser.Scale.NONE, width: window.innerWidth * DPR, height: window.innerHeight * DPR, zoom: 1 / DPR },
   // 低スペック端末でコマ落ちしても歩く速さが変わらないよう、実時間のdeltaを使う。
   // 会話が主役で激しい動きはないので30fpsに抑え、スマホの電池と発熱を減らす（長居する前提のため）
   fps: { smoothStep: false, limit: 30 },
   scene: [BootScene, IzakayaScene],
 });
+
+window.addEventListener("resize", () => game.scale.resize(window.innerWidth * DPR, window.innerHeight * DPR));
 
 const sceneReady = new Promise<IzakayaScene>((resolve) => game.events.once("izakaya-ready", resolve));
 
@@ -42,6 +47,8 @@ showEntrance(
   loadProfile(),
   fetchStatus().then((s) => s?.guests ?? null),
   async (profile) => {
+    // 音は「入店ボタンを押した瞬間」に用意しないと鳴らせない（ブラウザの決まり）ので、通信より先に作る
+    const ambience = startAmbience();
     const room = await joinIzakaya(profile);
     saveProfile(profile);
     const scene = await sceneReady;
@@ -52,6 +59,18 @@ showEntrance(
     room.onMessage(EVT.chat, (e: ChatEvent) => {
       const name = room.state.players.get(e.from)?.name ?? "だれか";
       chat.addLine(name, e.text, e.from === room.sessionId);
+      if (e.from !== room.sessionId) ambience.pop();
+    });
+
+    // 店内の音：人数でざわめきが変わる。右上のボタンで消音
+    game.events.on("guests", (count: number) => ambience.setGuests(count));
+    const soundButton = document.getElementById("sound") as HTMLButtonElement;
+    const renderSound = () => (soundButton.textContent = ambience.muted ? "🔇" : "🔊");
+    soundButton.hidden = false;
+    renderSound();
+    soundButton.addEventListener("click", () => {
+      ambience.toggleMute();
+      renderSound();
     });
     room.onMessage(EVT.notice, (e: NoticeEvent) => chat.notice(e.text));
 

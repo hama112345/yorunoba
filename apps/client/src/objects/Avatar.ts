@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { TEXT_RESOLUTION } from "../display";
 import type { SpeechBubble } from "./SpeechBubble";
 
 const WALK_SPEED = 170; // px/秒
@@ -42,6 +43,7 @@ export class Avatar extends Phaser.GameObjects.Container {
     ];
     const label = scene.add
       .text(0, -32, staff ? `🏮${name}` : name, {
+        resolution: TEXT_RESOLUTION,
         fontFamily: "sans-serif",
         fontSize: "13px",
         color: staff ? "#ff9a7a" : isSelf ? "#ffd27a" : "#f6eadb",
@@ -55,6 +57,7 @@ export class Avatar extends Phaser.GameObjects.Container {
     if (tags.length > 0) {
       const tagLine = scene.add
         .text(0, 22, tags.map((t) => `#${t}`).join(" "), {
+          resolution: TEXT_RESOLUTION,
           fontFamily: "sans-serif",
           fontSize: "11px",
           color: "#ffe3a3",

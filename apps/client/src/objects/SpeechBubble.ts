@@ -1,5 +1,6 @@
 import { REACTIONS, bubbleDurationMs, type Reaction } from "@yorunoba/shared";
 import Phaser from "phaser";
+import { TEXT_RESOLUTION } from "../display";
 
 const MAX_WIDTH = 190;
 const PAD_X = 10;
@@ -26,6 +27,7 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
 
     const label = scene.add
       .text(0, 0, text, {
+        resolution: TEXT_RESOLUTION,
         fontFamily: "sans-serif",
         fontSize: "14px",
         color: "#2a1912",
@@ -45,6 +47,7 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
 
     this.countLabel = scene.add
       .text(w / 2 + 4, -h - 8, "", {
+        resolution: TEXT_RESOLUTION,
         fontFamily: "sans-serif",
         fontSize: "12px",
         color: "#1a1220",
@@ -81,6 +84,7 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
 
     const pop = this.scene.add
       .text(this.x, this.y - this.boxHeight - 14, `${kind}!`, {
+        resolution: TEXT_RESOLUTION,
         fontFamily: "sans-serif",
         fontSize: "16px",
         fontStyle: "bold",
