@@ -3,6 +3,9 @@ import { BACK_WALL_HEIGHT, COUNTER, COUNTER_SEATS, ENTRANCE, FLOOR, TABLES, TABL
 
 // 素材を買うまでの仮の内装。図形だけで「それっぽい居酒屋」を描く。
 // 本物のドット絵素材に差し替えるときは、このファイルを丸ごと置き換える。
+//
+// 図形を毎フレーム描き直すとGPUの弱いスマホで重くなるので、
+// 起動時に1回だけ描いて画像に焼き付け、その画像を表示する。
 
 const WOOD_DARK = 0x3b2418;
 const WOOD = 0x6b4226;
@@ -12,7 +15,7 @@ const MENU_ITEMS = ["生ビール", "やきとり", "枝豆", "冷やっこ", "�
 const vertical = (s: string) => s.split("").join("\n");
 
 export function drawIzakaya(scene: Phaser.Scene) {
-  const g = scene.add.graphics().setDepth(-1000);
+  const g = scene.make.graphics({}, false);
   const { width, height, wall } = FLOOR;
 
   // 床（板張り）
@@ -92,7 +95,7 @@ export function drawIzakaya(scene: Phaser.Scene) {
   }
 
   // 提灯（赤）と灯りのにじみ
-  const glow = scene.add.graphics().setDepth(-998).setBlendMode(Phaser.BlendModes.ADD);
+  const glow = scene.make.graphics({}, false);
   const lanterns = [
     { x: wall + 22, y: BACK_WALL_HEIGHT + 30 },
     { x: width - wall - 22, y: BACK_WALL_HEIGHT + 30 },
@@ -111,4 +114,15 @@ export function drawIzakaya(scene: Phaser.Scene) {
   for (let x = 200; x <= 760; x += 280) {
     for (let r = 220; r > 0; r -= 30) glow.fillStyle(0xffc070, 0.018).fillCircle(x, 300, r);
   }
+
+  bake(scene, g, "izakaya-decor").setDepth(-1000);
+  bake(scene, glow, "izakaya-glow").setDepth(-998).setBlendMode(Phaser.BlendModes.ADD);
+}
+
+/** 描いた図形を店の大きさの画像にして、元の図形は捨てる */
+function bake(scene: Phaser.Scene, graphics: Phaser.GameObjects.Graphics, key: string) {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  graphics.generateTexture(key, FLOOR.width, FLOOR.height);
+  graphics.destroy();
+  return scene.add.image(0, 0, key).setOrigin(0);
 }

@@ -38,7 +38,7 @@
 - **クライアント**：Vite + TypeScript + Phaser 3。チャット入力やメニューはHTMLのDOMで重ねる（日本語IME・スマホキーボード対策）。
 - **サーバー**：Node.js + Colyseus 0.18（部屋＝店）。全発言がサーバーを通るので、NGワード・連投制限・AI店員・留置所をサーバー側で確実に処理できる。**発言は保存しない**。
 - **共通**：`packages/shared` に定数・間取り・同期する状態（Colyseus Schema）を置き、クライアントとサーバーで同じ定義を使う。
-- **ホスティング**：Render（1サービスでWebSocketと画面の両方を配信）。
+- **ホスティング**：Render（1サービスでWebSocketと画面の両方を配信）。`main` にpushすると自動で更新される。無料プランで始め、D10の一般公開前にStarter（月7ドル）へ切り替える。
 - **AI**：Claude Haiku 5.5（`claude-haiku-5-5`、入力100万トークン0.10ドル／出力0.50ドル）。AI店員とAI店主に使う。
 - **計測**：PostHog（発言本文は送らず、回数・文字数などだけ記録する）。
 - **テスト**：Vitest（ロジック・部屋）と Playwright（2つのブラウザで入店→同期）。
@@ -121,12 +121,12 @@ yorunoba/
 - **未成年対策**：18歳以上の自己申告。
 - **外部送信規律**：PostHogとAnthropic APIへの送信をプライバシーポリシーに明記する。
 - **知的財産**：キャラはオリジナルか購入素材にする。スポーツ中継の映像は流さない。
-- **費用の目安**：Render 月7ドル、Claude APIはクレジット内、素材0〜5,000円、広告1〜3万円。
+- **費用の目安**：Render 無料（D10からStarter 月7ドル）、Claude APIはクレジット内、素材0〜5,000円、広告1〜3万円。
 
 ## ユーザー側でやること
-- Renderアカウント作成とリポジトリ連携
+- READMEの「Deploy to Render」ボタンからデプロイ（GitHubのデフォルトブランチを main に変更）
 - PostHogアカウント作成
-- Anthropic APIキー（Renderの環境変数 `ANTHROPIC_API_KEY` に設定）
+- Anthropic APIキー（D8でRenderの環境変数 `ANTHROPIC_API_KEY` に設定）
 - ドット絵素材の選定
 - Discordサーバー（店主への通知先）の用意
 - プレオープンに呼ぶ知人への声かけ

@@ -12,12 +12,16 @@
 - 右上に店内の人数が出る。
 
 ## 公開する（Render）
-1. [Render](https://render.com) にGitHubアカウントでログインする。
-2. 「New +」→「Blueprint」→ このリポジトリを選ぶ。`render.yaml` の設定がそのまま使われる。
-3. デプロイが終わると `https://yorunoba-xxxx.onrender.com` のようなURLが発行される。スマホでも開いて確認する。
-4. 以後は、連携したブランチ（通常は main）にpushするたびに自動で更新される。
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hama112345/yorunoba)
 
-> 無料プランはアクセスがないとサーバーが眠り、入店に1分近くかかる。PoCでは月7ドルの Starter プランを推奨。
+1. 上のボタンを押し、GitHubアカウントでRenderにログインする。
+2. `render.yaml` の内容（サービス名 `yorunoba`、無料プラン、`main` ブランチ）が表示されるので「Apply」を押す。
+3. 数分でビルドが終わると、`https://yorunoba.onrender.com` のようなURLが発行される。スマホでも開いて確認する。
+4. 以後は、`main` にpushするたびに自動で更新される。
+
+> 無料プランは15分アクセスがないとサーバーが眠り、次の入店に1分ほどかかる。一般公開（D10）の前に、Renderの画面で Starter（月7ドル）に切り替える。
+
+公開中の店に対してE2Eを流すとき：`E2E_BASE_URL=https://（発行されたURL） npm run test:e2e`
 
 ## 手元で動かす（開発者・AI向け）
 Node.js 22 以上が必要。

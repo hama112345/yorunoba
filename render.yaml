@@ -1,11 +1,15 @@
-# Render（https://render.com）の設定。リポジトリを連携すると、pushのたびに自動でデプロイされる。
+# Render（https://render.com）の設定。READMEの「Deploy to Render」ボタンから読み込まれる。
 # 1つのWebサービスが、ゲームサーバー（WebSocket）と画面（ビルド済みクライアント）を両方配信する。
+# main ブランチにpushするたびに自動で更新される。
 services:
   - type: web
     name: yorunoba
     runtime: node
-    plan: starter # 無料プランはアクセスがないと眠って入店に1分近くかかるため、PoCではstarterを推奨
+    # 無料プランは15分アクセスがないと眠り、次の入店に1分ほどかかる。
+    # D10の一般公開前に starter（月7ドル）へ切り替える。
+    plan: free
     region: singapore # 日本から一番近いリージョン
+    branch: main
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /healthz
@@ -13,6 +17,4 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # D8以降で使う（AI店員・AI店主）。値はRenderの画面で入力する
-      - key: ANTHROPIC_API_KEY
-        sync: false
+      # D8（AI店員）で ANTHROPIC_API_KEY を追加する。値はRenderの画面で入力し、ここには書かない

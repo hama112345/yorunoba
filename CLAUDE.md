@@ -16,6 +16,11 @@
 | E2E（先に `npm run build`） | `npm run test:e2e` |
 | 本番起動（ビルド済みの画面も配信） | `npm start` |
 
+## ブランチと公開の流れ
+- 開発は `claude/...` ブランチで行い、pushしてGitHub ActionsのCIが**緑になってから**、同じコミットを `main` に反映する（fast-forward。オーナー了承済み）。
+- `main` へのpushでRenderが自動デプロイする（`render.yaml`）。`main` = 公開中の店なので、赤いコミットは載せない。
+- 反映後は、公開URLに対して `E2E_BASE_URL=… npm run test:e2e` で確認する。
+
 ## 構成
 npm workspaces のmonorepo。
 - `packages/shared`：定数・間取り・同期する状態（Colyseus Schema）。クライアントとサーバーの両方が使う値はここにだけ書く。
