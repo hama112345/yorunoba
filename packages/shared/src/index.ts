@@ -27,9 +27,31 @@ export const MSG = {
   move: "move",
 } as const;
 
+/** ひとこと札（話題タグ）。荒らし対策のため自由入力にせず、この中から選ぶ */
+export const TOPIC_TAGS = [
+  "仕事終わり",
+  "聞き専",
+  "初めて",
+  "サッカー",
+  "野球",
+  "アニメ",
+  "ゲーム",
+  "音楽",
+  "お酒好き",
+  "愚痴りたい",
+] as const;
+export type TopicTag = (typeof TOPIC_TAGS)[number];
+export const MAX_TAGS = 2;
+
 export interface JoinOptions {
   name?: string;
   color?: number;
+  tags?: string[];
+}
+
+/** 店の様子（入店画面の「いま○人」用） */
+export interface ShopStatus {
+  guests: number;
 }
 
 export interface MovePayload {
@@ -52,6 +74,13 @@ export function clampToFloor(x: number, y: number): MovePayload {
 export function sanitizeName(raw: unknown): string {
   const name = typeof raw === "string" ? raw.replace(/[\u0000-\u001f\u007f]/g, "").trim() : "";
   return name.slice(0, NAME_MAX_LENGTH) || "名無しの客";
+}
+
+/** ひとこと札を整える。一覧にあるものだけ・重複なし・最大 MAX_TAGS 個 */
+export function sanitizeTags(raw: unknown): TopicTag[] {
+  if (!Array.isArray(raw)) return [];
+  const known = raw.filter((t): t is TopicTag => (TOPIC_TAGS as readonly unknown[]).includes(t));
+  return [...new Set(known)].slice(0, MAX_TAGS);
 }
 
 export function isValidColor(color: unknown): color is number {

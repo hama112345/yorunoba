@@ -38,7 +38,7 @@ npm workspaces のmonorepo。
   - 状態の変化は `Callbacks.get(room)` で受け取る（`.onAdd("players", …)`、`.listen(obj, "x", …)`、`.onChange(obj, …)`）。
 - **@colyseus/schema 5**：`schema({ ... }, "Name")` と `t.string()` などのビルダーで定義する（デコレーターは使わない）。
 - **Phaser 3.90**（4系ではない）。歩く速さは実時間で計算する（`fps.smoothStep: false`）。
-- **Claude API**：`@anthropic-ai/sdk` を使い、モデルは `claude-haiku-5-5`（AI店員・AI店主）。
+- **Claude API**：`@anthropic-ai/sdk` を使い、モデルは `claude-haiku-5-5`（AI店員・AI常連）。
 - メジャーバージョンを上げるときは、理由を書いてから上げる。
 
 ## 守ること

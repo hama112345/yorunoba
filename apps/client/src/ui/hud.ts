@@ -1,8 +1,8 @@
 const status = () => document.getElementById("status")!;
 
-export function showConnecting() {
-  status().dataset.state = "connecting";
-  status().textContent = "入店中…";
+export function showWaiting() {
+  status().dataset.state = "waiting";
+  status().textContent = "のれんの前";
 }
 
 export function showGuests(count: number) {

@@ -1,5 +1,5 @@
 import { Callbacks, Client, type Room } from "@colyseus/sdk";
-import { FLOOR, IzakayaState, MSG, ROOM_IZAKAYA } from "@yorunoba/shared";
+import { FLOOR, IzakayaState, MSG, ROOM_IZAKAYA, type JoinOptions, type ShopStatus } from "@yorunoba/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer } from "../src/app.js";
 
@@ -18,8 +18,8 @@ async function waitFor(check: () => boolean, timeoutMs = 3000) {
 
 type IzakayaRoom = Room<any, IzakayaState>;
 
-function join(name: string): Promise<IzakayaRoom> {
-  return sdk.joinOrCreate(ROOM_IZAKAYA, { name }, IzakayaState);
+function join(name: string, tags?: unknown): Promise<IzakayaRoom> {
+  return sdk.joinOrCreate(ROOM_IZAKAYA, { name, tags } as JoinOptions, IzakayaState);
 }
 
 function playerCount(room: IzakayaRoom) {
@@ -74,5 +74,25 @@ describe("IzakayaRoom", () => {
     expect(playerOf(room, room.sessionId)?.y).toBe(FLOOR.height - FLOOR.wall);
 
     await room.leave();
+  });
+
+  it("syncs sanitized topic tags", async () => {
+    const room = await join("タグの人", ["サッカー", "ハッキング", "サッカー", "仕事終わり", "聞き専"]);
+    await waitFor(() => playerOf(room, room.sessionId) !== undefined);
+    expect(playerOf(room, room.sessionId)?.tags).toBe("サッカー,仕事終わり");
+    await room.leave();
+  });
+
+  it("reports how many guests are drinking", async () => {
+    const status = async () => (await (await fetch(`http://localhost:${PORT}/api/status`)).json()) as ShopStatus;
+    expect(await status()).toEqual({ guests: 0 });
+
+    const a = await join("A");
+    const b = await join("B");
+    await waitFor(() => playerCount(b) === 2);
+    expect(await status()).toEqual({ guests: 2 });
+
+    await a.leave();
+    await b.leave();
   });
 });

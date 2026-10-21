@@ -94,16 +94,22 @@ export function drawIzakaya(scene: Phaser.Scene) {
     g.fillStyle(0x6d597a).fillRoundedRect(seat.x - 14, seat.y - 12, 28, 24, 5);
   }
 
-  // 提灯（赤）と灯りのにじみ
-  const glow = scene.make.graphics({}, false);
+  // 灯りのにじみ（提灯と天井の明かり）。別の層にすると毎フレームの描画が重くなるので、同じ画像に焼き込む
   const lanterns = [
     { x: wall + 22, y: BACK_WALL_HEIGHT + 30 },
     { x: width - wall - 22, y: BACK_WALL_HEIGHT + 30 },
     { x: ENTRANCE.x - 26, y: height - wall - 18 },
     { x: ENTRANCE.x + ENTRANCE.w + 26, y: height - wall - 18 },
   ];
+  for (let x = 200; x <= 760; x += 280) {
+    for (let r = 220; r > 0; r -= 30) g.fillStyle(0xffc070, 0.018).fillCircle(x, 300, r);
+  }
   for (const l of lanterns) {
-    for (let r = 90; r > 0; r -= 15) glow.fillStyle(0xff9a3c, 0.035).fillCircle(l.x, l.y, r);
+    for (let r = 90; r > 0; r -= 15) g.fillStyle(0xff9a3c, 0.035).fillCircle(l.x, l.y, r);
+  }
+
+  // 提灯（赤）
+  for (const l of lanterns) {
     g.fillStyle(0xc0392b).fillEllipse(l.x, l.y, 26, 34);
     g.fillStyle(0x1a1220).fillRect(l.x - 7, l.y - 19, 14, 4).fillRect(l.x - 7, l.y + 15, 14, 4);
     scene.add
@@ -111,12 +117,8 @@ export function drawIzakaya(scene: Phaser.Scene) {
       .setOrigin(0.5)
       .setDepth(-997);
   }
-  for (let x = 200; x <= 760; x += 280) {
-    for (let r = 220; r > 0; r -= 30) glow.fillStyle(0xffc070, 0.018).fillCircle(x, 300, r);
-  }
 
   bake(scene, g, "izakaya-decor").setDepth(-1000);
-  bake(scene, glow, "izakaya-glow").setDepth(-998).setBlendMode(Phaser.BlendModes.ADD);
 }
 
 /** 描いた図形を店の大きさの画像にして、元の図形は捨てる */

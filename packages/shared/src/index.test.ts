@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { AVATAR_COLORS, FLOOR, NAME_MAX_LENGTH, clampToFloor, isValidColor, sanitizeName } from "./index";
+import {
+  AVATAR_COLORS,
+  FLOOR,
+  MAX_TAGS,
+  NAME_MAX_LENGTH,
+  clampToFloor,
+  isValidColor,
+  sanitizeName,
+  sanitizeTags,
+} from "./index";
 
 describe("clampToFloor", () => {
   it("keeps points inside the floor as-is (rounded)", () => {
@@ -28,5 +37,18 @@ describe("isValidColor", () => {
     expect(isValidColor(AVATAR_COLORS[0])).toBe(true);
     expect(isValidColor(0x123456)).toBe(false);
     expect(isValidColor("red")).toBe(false);
+  });
+});
+
+describe("sanitizeTags", () => {
+  it("keeps only known tags, without duplicates, up to MAX_TAGS", () => {
+    expect(sanitizeTags(["サッカー", "サッカー", "仕事終わり", "聞き専"])).toEqual(["サッカー", "仕事終わり"]);
+    expect(sanitizeTags(["サッカー", "<script>", 42])).toEqual(["サッカー"]);
+    expect(sanitizeTags(["仕事終わり", "聞き専", "初めて"])).toHaveLength(MAX_TAGS);
+  });
+
+  it("returns an empty list for junk input", () => {
+    expect(sanitizeTags(undefined)).toEqual([]);
+    expect(sanitizeTags("サッカー")).toEqual([]);
   });
 });

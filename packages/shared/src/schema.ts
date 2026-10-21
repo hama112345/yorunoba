@@ -8,6 +8,8 @@ export const Player = schema(
     color: t.uint32().default(0),
     x: t.int16().default(0),
     y: t.int16().default(0),
+    /** ひとこと札（TOPIC_TAGS の中から最大2つ、カンマ区切り） */
+    tags: t.string().default(""),
   },
   "Player",
 );

@@ -9,6 +9,7 @@ import {
   clampToFloor,
   isValidColor,
   sanitizeName,
+  sanitizeTags,
   type JoinOptions,
   type MovePayload,
 } from "@yorunoba/shared";
@@ -39,6 +40,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     const { x, y } = entrancePosition();
     const player = new Player();
     player.name = sanitizeName(options.name);
+    player.tags = sanitizeTags(options.tags).join(",");
     player.color = isValidColor(options.color)
       ? options.color
       : AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];

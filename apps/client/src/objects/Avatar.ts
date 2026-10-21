@@ -4,12 +4,22 @@ const WALK_SPEED = 170; // px/秒
 
 /** 客のアバター。サーバーの座標を目標に、歩いて追いかける */
 export class Avatar extends Phaser.GameObjects.Container {
+  readonly tags: string[];
   private target: Phaser.Math.Vector2;
   private body_: Phaser.GameObjects.Ellipse;
   private bob = 0;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, name: string, color: number, isSelf: boolean) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    name: string,
+    color: number,
+    tags: string[],
+    isSelf: boolean,
+  ) {
     super(scene, x, y);
+    this.tags = tags;
     this.target = new Phaser.Math.Vector2(x, y);
 
     const shadow = scene.add.ellipse(0, 14, 30, 10, 0x000000, 0.3);
@@ -33,6 +43,19 @@ export class Avatar extends Phaser.GameObjects.Container {
       .setOrigin(0.5, 1);
 
     this.add([shadow, this.body_, ...cheeks, ...eyes, label]);
+    // ひとこと札は足元に小さく出す（頭の上は名前と、D3で吹き出しを出すため空けておく）
+    if (tags.length > 0) {
+      const tagLine = scene.add
+        .text(0, 22, tags.map((t) => `#${t}`).join(" "), {
+          fontFamily: "sans-serif",
+          fontSize: "11px",
+          color: "#ffe3a3",
+          backgroundColor: "rgba(26,18,32,0.7)",
+          padding: { x: 4, y: 1 },
+        })
+        .setOrigin(0.5, 0);
+      this.add(tagLine);
+    }
     if (isSelf) {
       this.add(scene.add.triangle(0, -50, 0, 0, 10, 0, 5, 7, 0xffd27a).setOrigin(0.5));
     }

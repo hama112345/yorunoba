@@ -45,13 +45,83 @@
       }
       #status[data-state="error"] { border-color: var(--danger); color: #ffd2c4; }
       .brand { color: var(--accent); font-weight: 700; letter-spacing: 0.08em; }
+
+      /* 入店画面（のれんの前）。店の絵が透けて見えるように半透明 */
+      #entrance {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        background: rgba(10, 6, 14, 0.55);
+        overflow-y: auto;
+        z-index: 10;
+      }
+      #entrance .card {
+        width: min(420px, 100%);
+        background: var(--panel);
+        border: 1px solid rgba(232, 163, 61, 0.45);
+        border-radius: 16px;
+        padding: 20px 20px 16px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      }
+      #entrance h1 { margin: 0; font-size: 32px; text-align: center; }
+      #entrance .lead { margin: 6px 0 4px; text-align: center; line-height: 1.6; opacity: 0.9; }
+      #entrance .guests { margin: 4px 0 0; text-align: center; color: var(--accent); }
+      #entrance .field { display: block; border: 0; padding: 0; margin: 14px 0 0; }
+      #entrance .field > span, #entrance legend { display: block; font-size: 13px; margin-bottom: 6px; opacity: 0.85; }
+      #entrance legend small { opacity: 0.75; }
+      #entrance input[name="name"] {
+        width: 100%;
+        font-size: 16px; /* 16px未満だとiPhoneが勝手にズームする */
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(246, 234, 219, 0.25);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+      }
+      #entrance .swatches, #entrance .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+      #entrance .swatch {
+        width: 34px; height: 34px; border-radius: 50%;
+        background: var(--c);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+      }
+      #entrance .swatch[aria-pressed="true"] { border-color: #ffd27a; box-shadow: 0 0 0 3px rgba(255, 210, 122, 0.35); }
+      #entrance .chip {
+        font-size: 14px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(232, 163, 61, 0.4);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+      #entrance .chip[aria-pressed="true"] { background: var(--accent); color: #1a1220; border-color: var(--accent); }
+      #entrance .chip:disabled { opacity: 0.35; cursor: default; }
+      #entrance .adult { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; font-size: 15px; }
+      #entrance .adult input { width: 20px; height: 20px; }
+      #entrance .enter {
+        width: 100%;
+        margin-top: 14px;
+        padding: 14px;
+        font-size: 17px;
+        font-weight: 700;
+        border: 0;
+        border-radius: 12px;
+        background: linear-gradient(#c0392b, #8e2a20);
+        color: #fff4e6;
+        cursor: pointer;
+      }
+      #entrance .enter:disabled { opacity: 0.45; cursor: default; }
+      #entrance .error { color: #ffd2c4; font-size: 14px; margin: 10px 0 0; }
     </style>
   </head>
   <body>
     <div id="game"></div>
     <div id="hud">
       <span class="pill"><span class="brand">ヨルノバ</span> 1号店</span>
-      <span class="pill" id="status" data-state="connecting">入店中…</span>
+      <span class="pill" id="status" data-state="waiting">のれんの前</span>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
