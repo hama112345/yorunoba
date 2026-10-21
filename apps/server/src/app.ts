@@ -17,8 +17,9 @@ export function createServer() {
       [ROOM_IZAKAYA]: defineRoom(IzakayaRoom),
     },
     express: (app) => {
+      // version: いま動いているコミット（Renderが自動で設定）。本番確認で「新しい版に入れ替わったか」を見る
       app.get("/healthz", (_req, res) => {
-        res.json({ ok: true });
+        res.json({ ok: true, version: process.env.RENDER_GIT_COMMIT ?? "dev" });
       });
 
       // 入店画面の「いま○人が飲んでる」用。人数だけを返す（名前などは出さない）
