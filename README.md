@@ -20,15 +20,26 @@
 ## 公開する（Render）
 GitHubのリポジトリが非公開でも公開でも、この手順で公開できる。遊ぶ人は発行されたURLで入店するので、GitHubを見せる必要はない。
 
+**先にやること（非公開リポジトリでは必須）**：RenderがこのリポジトリをGitHubから読めるように許可する。
+[Render GitHub App の設定](https://github.com/apps/render/installations/new) を開き、自分のアカウントの「Configure」→「Repository access」で
+`yorunoba` を追加して（または「All repositories」）保存する。
+
 1. [Render](https://dashboard.render.com) にGitHubアカウントでログインする。
 2. 「New +」→「Blueprint」を選ぶ。
-3. リポジトリの一覧から `yorunoba` を選ぶ。
-   - 一覧に出ないときは「Configure GitHub」から、RenderにこのリポジトリへのアクセスをGitHub側で許可する（非公開リポジトリのとき）。
+3. リポジトリの一覧から `yorunoba` を選ぶ（出てこないときは、上の「先にやること」をやり直す）。
 4. `render.yaml` の内容（サービス名 `yorunoba`、無料プラン、`main` ブランチ）が表示されるので「Apply」を押す。
 5. 数分でビルドが終わると、`https://yorunoba.onrender.com` のようなURLが発行される。スマホでも開いて確認する。
 6. 以後は、`main` にpushするたびに自動で更新される。
 
-> 近道（リポジトリが公開のときだけ使える）：[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hama112345/yorunoba)
+> 「Deploy to Render」ボタン（`render.com/deploy?repo=…`）は公開リポジトリ専用の近道。これで作ったサービスは、あとでリポジトリを非公開にすると更新できなくなるので使わない。
+
+### 「We are unable to access to your GitHub repository」と出たとき
+RenderがGitHubのリポジトリを読めていない（非公開にした後に多い）。上から順に確かめる。
+1. 上の「先にやること」で、Render GitHub App に `yorunoba` へのアクセスを許可する。
+2. Renderのサービス →「Settings」→「Build & Deploy」で、リポジトリが自分のGitHub連携（Git Credentials）でつながっているか、
+   ブランチが `main` か、Auto-Deploy がオンかを確かめ、「Manual Deploy」→「Deploy latest commit」。
+   - Render全体でGitHubがつながっていなければ「Account Settings」→「Git Deployment Credentials」→「Add credential」→ GitHub。
+3. それでもだめなら、環境変数の値を控えてからサービスを削除し、上の手順（Blueprint）で作り直す（URLは同じになる）。
 
 > 無料プランは15分アクセスがないとサーバーが眠り、次の入店に1分ほどかかる。一般公開（D10）の前に、Renderの画面で Starter（月7ドル）に切り替える。
 
