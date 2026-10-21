@@ -5,6 +5,7 @@
 - 計画：[docs/poc-plan.md](docs/poc-plan.md)
 - 検証指標：[docs/hypotheses.md](docs/hypotheses.md)
 - 毎晩の営業記録：[docs/nightly-log.md](docs/nightly-log.md)
+- プレオープン（D7）の手順：[docs/pre-open.md](docs/pre-open.md)
 
 ## いまできること（D6まで）
 - **入店**：のれんの前に「いま○人が飲んでる」と営業時間。名前・色・ひとこと札（話題タグ2つまで）を選び、18歳以上を確認して入る。
