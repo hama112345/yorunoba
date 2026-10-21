@@ -1,5 +1,6 @@
 import { Callbacks, Client, type Room } from "@colyseus/sdk";
 import {
+  AI_REGULAR,
   EVT,
   FLOOR,
   IzakayaState,
@@ -17,6 +18,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer } from "../src/app.js";
 import { aiStaffSettings, useAiStaff, type AiStaff, type ReviewLine } from "../src/moderation/aiStaff.js";
+import { SELF_SPEAKER, aiRegularSettings, useAiRegular, type AiRegular } from "../src/npc/aiRegular.js";
 
 const PORT = 2601;
 const server = createServer();
@@ -54,6 +56,17 @@ describe("IzakayaRoom", () => {
     // AI店員は基本オフ（使うテストだけ偽物を入れる）。見回りはテスト用に短い間隔で
     useAiStaff(null);
     aiStaffSettings.patrolMs = 100;
+    // AI常連も基本オフ。使うテストだけ偽物を入れ、間隔を短くする
+    useAiRegular(null);
+    Object.assign(aiRegularSettings, {
+      tickMs: 100,
+      leaveGraceMs: 300,
+      replyDelayMs: [50, 100],
+      minGapMs: 0,
+      silenceMs: 60_000,
+      greetDelayMs: 100,
+      byeDelayMs: 200,
+    });
     await server.listen(PORT);
   });
 
@@ -371,6 +384,69 @@ describe("IzakayaRoom", () => {
 
     useAiStaff(null);
     await a.leave();
+  });
+
+  it("brings in the AI regular only while the shop is quiet, and lets it chat within the rules", async () => {
+    const asked: ReviewLine[][] = [];
+    let next: string | null = "いいですね、乾杯！";
+    const fake: AiRegular = {
+      async reply(lines) {
+        asked.push(lines);
+        return next;
+      },
+    };
+    useAiRegular(fake);
+    const alice = await join("アリス", ["サッカー"], { deviceId: device() });
+    const heard: ChatEvent[] = [];
+    alice.onMessage(EVT.chat, (e: ChatEvent) => heard.push(e));
+    alice.onMessage(EVT.notice, () => {});
+
+    // 客が1人なので、AI常連が来て（名札にAI）、カウンターに座り、あいさつする
+    await waitFor(() => playerOf(alice, AI_REGULAR.id)?.ai === true);
+    await waitFor(() => (playerOf(alice, AI_REGULAR.id)?.seat ?? "").startsWith("counter"));
+    await waitFor(() => heard.some((h) => h.from === AI_REGULAR.id));
+    // 店内人数（入店画面の「いま○人」）にはAIを数えない
+    const status = (await (await fetch(`http://localhost:${PORT}/api/status`)).json()) as ShopStatus;
+    expect(status.guests).toBe(1);
+
+    // 話しかけると、少し間を置いて返事をする。AIには名前ではなく仮の呼び名で渡る
+    alice.send(MSG.chat, { text: "こんばんは、ゲンさん" });
+    await waitFor(() => heard.some((h) => h.from === AI_REGULAR.id && h.text === "いいですね、乾杯！"));
+    const last = asked[asked.length - 1];
+    expect(last.some((l) => l.speaker === "客1" && l.text === "こんばんは、ゲンさん")).toBe(true);
+    expect(last.some((l) => l.speaker === SELF_SPEAKER)).toBe(true);
+    expect(JSON.stringify(asked)).not.toContain("アリス");
+
+    // 黙ると決めたら何も言わない
+    next = null;
+    const before = heard.length;
+    alice.send(MSG.chat, { text: "ひとりごと" });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(heard.slice(before).filter((h) => h.from === AI_REGULAR.id)).toHaveLength(0);
+
+    // AIは通報できない（何も起きない）
+    alice.send(MSG.report, { target: AI_REGULAR.id });
+
+    // 客が3人になったら、しばらくして挨拶して帰る
+    const bob = await join("ボブ", undefined, { deviceId: device() });
+    const carol = await join("キャロル", undefined, { deviceId: device() });
+    bob.onMessage(EVT.chat, () => {});
+    carol.onMessage(EVT.chat, () => {});
+    await waitFor(() => heard.some((h) => h.from === AI_REGULAR.id && h.text.includes("帰ります")), 5000);
+    await waitFor(() => playerOf(alice, AI_REGULAR.id) === undefined, 5000);
+
+    useAiRegular(null);
+    await bob.leave();
+    await carol.leave();
+    await alice.leave();
+  }, 15_000);
+
+  it("keeps the AI regular away without an API key", async () => {
+    const alice = await join("アリス", undefined, { deviceId: device() });
+    await waitFor(() => playerCount(alice) === 1);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(playerOf(alice, AI_REGULAR.id)).toBeUndefined();
+    await alice.leave();
   });
 
   it("spawns new guests apart from each other near the entrance", async () => {

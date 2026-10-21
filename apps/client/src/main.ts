@@ -94,7 +94,8 @@ showEntrance(
       track("chat_sent", { length: [...text].length, nth: chats });
     });
     room.onMessage(EVT.chat, (e: ChatEvent) => {
-      const name = room.state.players.get(e.from)?.name ?? "だれか";
+      const speaker = room.state.players.get(e.from);
+      const name = speaker ? (speaker.ai ? `🤖${speaker.name}` : speaker.name) : "だれか";
       chat.addLine(name, e.text, e.from === room.sessionId, e.id);
       if (e.from !== room.sessionId) ambience.pop();
     });
@@ -125,7 +126,7 @@ showEntrance(
       if (!guest) return;
       const viewerIsStaff = room.state.players.get(room.sessionId)?.staff ?? false;
       showGuestCard(
-        { name: guest.name, tags: guest.tags ? guest.tags.split(",") : [], staff: guest.staff },
+        { name: guest.name, tags: guest.tags ? guest.tags.split(",") : [], staff: guest.staff, ai: guest.ai },
         viewerIsStaff,
         () => {
           room.send(MSG.report, { target: sessionId });

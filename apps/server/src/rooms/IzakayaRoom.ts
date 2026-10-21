@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { Room, ServerError, type AuthContext, type Client } from "@colyseus/core";
 import {
+  AI_REGULAR,
   AVATAR_COLORS,
   EVT,
   FLOOR,
@@ -12,6 +13,7 @@ import {
   REPORTS_TO_JAIL,
   REPORT_WINDOW_MS,
   RULE_STRIKES_TO_JAIL,
+  SEATS,
   clampToFloor,
   findSeat,
   isReaction,
@@ -35,6 +37,7 @@ import { hoursAnnouncement, hoursEnforced } from "../hours.js";
 import { aiStaffSettings, getAiStaff, type FlagCategory, type ReviewLine } from "../moderation/aiStaff.js";
 import { ReportBook, jailList } from "../moderation/jail.js";
 import { notifyStaff } from "../moderation/notify.js";
+import { SELF_SPEAKER, aiRegularSettings, getAiRegular } from "../npc/aiRegular.js";
 
 /** 出現位置どうしの最低距離（重なると、タップで別の人を選んでしまう） */
 const SPAWN_GAP = 44;
@@ -129,6 +132,17 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   private patrolling = false;
   /** 留置所へ送っている途中の客 */
   private jailing = new Set<string>();
+  /** AI常連（店にいないときは undefined） */
+  private regular?: {
+    lastSpokeAt: number;
+    /** 人が増えて混んできた時刻（しばらく続いたら帰る） */
+    crowdedSince?: number;
+    replyTimer?: { clear(): void };
+    asking: boolean;
+    leaving: boolean;
+  };
+  /** 最後に誰かが話した時刻（店が静かならAI常連から話を振る） */
+  private lastChatAt = Date.now();
   private lastBubbleId = 0;
   private phase = shopPhase();
 
@@ -151,6 +165,8 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     this.clock.setInterval(() => this.checkHours(), 20_000);
     // AI店員の見回り（APIキーが無いときは何もしない）
     this.clock.setInterval(() => void this.patrol(), aiStaffSettings.patrolMs);
+    // AI常連の出入り（客が少ないときだけ現れる。APIキーが無いときは現れない）
+    this.clock.setInterval(() => this.regularTick(), aiRegularSettings.tickMs);
 
     this.onMessage(MSG.move, (client: Client, payload: Partial<MovePayload>) => {
       const player = this.state.players.get(client.sessionId);
@@ -196,6 +212,8 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
       this.broadcast(EVT.chat, event);
       // 吹き出しはすぐに出し、AI店員はあとからまとめて見回る（会話を待たせない）
       if (getAiStaff()) this.patrolQueue.push({ id: event.id, from: client.sessionId, text });
+      this.lastChatAt = Date.now();
+      this.scheduleRegularReply();
     });
 
     this.onMessage(MSG.react, (client: Client, payload: { bubbleId?: unknown; kind?: unknown }) => {
@@ -299,6 +317,105 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     } finally {
       this.patrolling = false;
     }
+  }
+
+  /** AI常連の出入りと、静かなときの話題振り（定期的に呼ぶ） */
+  private regularTick(now = Date.now()) {
+    const ai = getAiRegular();
+    const guests = this.clients.length;
+    const { maxGuests, leaveGraceMs, silenceMs } = aiRegularSettings;
+    if (!this.regular) {
+      if (ai && guests >= 1 && guests <= maxGuests) this.regularArrives(now);
+      return;
+    }
+    if (!ai || guests === 0) return this.regularLeaves(false);
+    if (guests > maxGuests) {
+      // 人が増えたら、しばらくしてから帰る（主役はお客さん同士）
+      this.regular.crowdedSince ??= now;
+      if (now - this.regular.crowdedSince >= leaveGraceMs) this.regularLeaves(true);
+      return;
+    }
+    this.regular.crowdedSince = undefined;
+    if (now - this.lastChatAt >= silenceMs && now - this.regular.lastSpokeAt >= silenceMs) void this.regularSpeaks();
+  }
+
+  /** AI常連が入口から入ってきて、カウンターの空いている席に座る */
+  private regularArrives(now: number) {
+    const player = new Player();
+    player.ai = true;
+    player.name = AI_REGULAR.name;
+    player.color = AI_REGULAR.color;
+    player.tags = AI_REGULAR.tags.join(",");
+    const start = entrancePosition([...this.state.players.values()]);
+    player.x = start.x;
+    player.y = start.y;
+    this.state.players.set(AI_REGULAR.id, player);
+    this.regular = { lastSpokeAt: now, asking: false, leaving: false };
+    // 入ってきてから席へ歩く（画面では歩いて見える）
+    this.clock.setTimeout(() => {
+      // カウンター席から順に空きを探す（SEATS はカウンターが先）
+      const seat = SEATS.find((s) => !this.isSeatTaken(s.id, AI_REGULAR.id));
+      if (!seat || !this.state.players.has(AI_REGULAR.id)) return;
+      player.seat = seat.id;
+      player.x = seat.x;
+      player.y = seat.y;
+    }, 500);
+    this.clock.setTimeout(() => this.regularSays("いらっしゃい！ゆっくりしていってくださいね"), aiRegularSettings.greetDelayMs);
+  }
+
+  /** AI常連が帰る。bye なら挨拶してから */
+  private regularLeaves(bye: boolean) {
+    if (!this.regular || this.regular.leaving) return;
+    this.regular.leaving = true;
+    this.regular.replyTimer?.clear();
+    if (bye) this.regularSays("さて、そろそろ帰ります。ごゆっくり！", true);
+    this.clock.setTimeout(() => {
+      this.state.players.delete(AI_REGULAR.id);
+      this.regular = undefined;
+    }, bye ? aiRegularSettings.byeDelayMs : 0);
+  }
+
+  /** 客の発言のあと、少し間を置いてAI常連が返事をするか考える（続けて話しすぎない） */
+  private scheduleRegularReply() {
+    const regular = this.regular;
+    if (!regular || regular.leaving || regular.replyTimer) return;
+    const [min, max] = aiRegularSettings.replyDelayMs;
+    const wait = Math.max(min + Math.random() * (max - min), regular.lastSpokeAt + aiRegularSettings.minGapMs - Date.now());
+    regular.replyTimer = this.clock.setTimeout(() => {
+      regular.replyTimer = undefined;
+      void this.regularSpeaks();
+    }, wait);
+  }
+
+  /** 直近の会話をAIに見せて、AI常連が何か言うなら言う（黙ることもある） */
+  private async regularSpeaks() {
+    const ai = getAiRegular();
+    const regular = this.regular;
+    if (!ai || !regular || regular.asking || regular.leaving) return;
+    regular.asking = true;
+    try {
+      const alias = this.aliases();
+      const lines = this.recentChats
+        .slice(-12)
+        .map((c) => ({ speaker: c.from === AI_REGULAR.id ? SELF_SPEAKER : alias(c.from), text: c.text }));
+      const tags = new Set<string>();
+      for (const [id, p] of this.state.players) if (id !== AI_REGULAR.id && p.tags) p.tags.split(",").forEach((t) => tags.add(t));
+      const text = await ai.reply(lines, { guests: this.clients.length, tags: [...tags] });
+      if (text) this.regularSays(text);
+    } finally {
+      regular.asking = false;
+    }
+  }
+
+  /** AI常連の発言を吹き出しにする（客の発言と同じく、保存はしない） */
+  private regularSays(text: string, evenIfLeaving = false) {
+    const regular = this.regular;
+    if (!regular || (regular.leaving && !evenIfLeaving) || !this.state.players.has(AI_REGULAR.id)) return;
+    const event: ChatEvent = { id: ++this.lastBubbleId, from: AI_REGULAR.id, text };
+    this.recentChats.push({ ...event, reactedBy: new Set() });
+    if (this.recentChats.length > RECENT_CHAT_LIMIT) this.recentChats.shift();
+    this.broadcast(EVT.chat, event);
+    regular.lastSpokeAt = Date.now();
   }
 
   /** 通報の一次審査：1人目の通報で、AI店員が直近の発言を見て判断する（2人目を待たずに対応できる） */

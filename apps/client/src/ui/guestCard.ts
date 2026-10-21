@@ -3,6 +3,7 @@ export interface GuestInfo {
   name: string;
   tags: string[];
   staff: boolean;
+  ai: boolean;
 }
 
 let current: HTMLElement | null = null;
@@ -16,10 +17,14 @@ export function showGuestCard(guest: GuestInfo, viewerIsStaff: boolean, onReport
 
   const title = document.createElement("p");
   title.className = "name";
-  title.textContent = guest.staff ? `🏮 ${guest.name}（店主）` : guest.name; // textContentで入れる（HTMLとして解釈させない）
+  title.textContent = guest.staff ? `🏮 ${guest.name}（店主）` : guest.ai ? `🤖 ${guest.name}（AI常連）` : guest.name; // textContentで入れる（HTMLとして解釈させない）
   const tags = document.createElement("p");
   tags.className = "tags";
-  tags.textContent = guest.tags.length ? guest.tags.map((t) => `#${t}`).join(" ") : "ひとこと札なし";
+  tags.textContent = guest.ai
+    ? "店のAIです。人が少ない時間だけ、話し相手になります。人が増えたら帰ります"
+    : guest.tags.length
+      ? guest.tags.map((t) => `#${t}`).join(" ")
+      : "ひとこと札なし";
 
   const actions = document.createElement("div");
   actions.className = "actions";
@@ -29,7 +34,7 @@ export function showGuestCard(guest: GuestInfo, viewerIsStaff: boolean, onReport
   close.addEventListener("click", closeGuestCard);
   actions.append(close);
 
-  if (!guest.staff) {
+  if (!guest.staff && !guest.ai) {
     const report = document.createElement("button");
     report.type = "button";
     report.className = "danger";

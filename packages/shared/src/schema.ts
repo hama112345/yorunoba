@@ -14,6 +14,8 @@ export const Player = schema(
     seat: t.string().default(""),
     /** 店主（店員）なら true。名札に「店主」と出る */
     staff: t.boolean().default(false),
+    /** AI常連なら true。名札に「AI」と出る（人のふりをしない） */
+    ai: t.boolean().default(false),
   },
   "Player",
 );

@@ -185,3 +185,14 @@ export function isValidColor(color: unknown): color is number {
 export * from "./layout";
 export { IzakayaState, Player } from "./schema";
 export * from "./hours";
+
+/**
+ * AI常連。客が少ない時間（1〜2人）だけ現れて、カウンターで話し相手になる。
+ * 名札に「AI」と出し、人のふりはしない。sessionId の代わりにこのIDで店内の状態に入る
+ */
+export const AI_REGULAR = {
+  id: "ai-regular",
+  name: "ゲン",
+  color: 0x8fb8de,
+  tags: ["お酒好き"],
+} as const;

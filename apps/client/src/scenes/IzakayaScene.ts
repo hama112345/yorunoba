@@ -90,7 +90,7 @@ export class IzakayaScene extends Phaser.Scene {
     callbacks.onAdd("players", (player, sessionId) => {
       const isSelf = sessionId === room.sessionId;
       const tags = player.tags ? player.tags.split(",") : [];
-      const avatar = new Avatar(this, player.x, player.y, player.name, player.color, tags, isSelf, player.staff);
+      const avatar = new Avatar(this, player.x, player.y, player.name, player.color, tags, isSelf, player.staff, player.ai);
       avatar.seat = player.seat;
       avatar.on("tap", () => this.game.events.emit("guest-tap", sessionId));
       this.avatars.set(sessionId, avatar);
@@ -212,7 +212,8 @@ export class IzakayaScene extends Phaser.Scene {
 
   /** 人数が変わったら：右上の人数、店の明るさ、音（main.ts が "guests" を聞いている） */
   private onGuestsChanged() {
-    const count = this.avatars.size;
+    // 店内人数はお客さん（人）だけ数える。AI常連は数えない
+    const count = [...this.avatars.values()].filter((a) => !a.ai).length;
     showGuests(count);
     this.game.events.emit("guests", count);
     const target = Math.min(1, (count - 1) / (FULL_GUESTS - 1));

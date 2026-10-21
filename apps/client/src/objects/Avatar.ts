@@ -8,6 +8,8 @@ const WALK_SPEED = 170; // px/秒
 export class Avatar extends Phaser.GameObjects.Container {
   readonly guestName: string;
   readonly tags: string[];
+  /** AI常連なら true（名札に🤖AI。店内人数には数えない） */
+  readonly ai: boolean;
   /** 座っている席のID（立っていれば ""） */
   seat = "";
   private target: Phaser.Math.Vector2;
@@ -25,9 +27,11 @@ export class Avatar extends Phaser.GameObjects.Container {
     tags: string[],
     isSelf: boolean,
     staff = false,
+    ai = false,
   ) {
     super(scene, x, y);
     this.guestName = name;
+    this.ai = ai;
     this.tags = tags;
     this.target = new Phaser.Math.Vector2(x, y);
 
@@ -42,11 +46,11 @@ export class Avatar extends Phaser.GameObjects.Container {
       scene.add.circle(10, 3, 3.2, 0xff8fa3, 0.55),
     ];
     const label = scene.add
-      .text(0, -32, staff ? `🏮${name}` : name, {
+      .text(0, -32, staff ? `🏮${name}` : ai ? `🤖${name}（AI）` : name, {
         resolution: TEXT_RESOLUTION,
         fontFamily: "sans-serif",
         fontSize: "13px",
-        color: staff ? "#ff9a7a" : isSelf ? "#ffd27a" : "#f6eadb",
+        color: staff ? "#ff9a7a" : ai ? "#9fd0ff" : isSelf ? "#ffd27a" : "#f6eadb",
         stroke: "#1a1220",
         strokeThickness: 4,
       })
