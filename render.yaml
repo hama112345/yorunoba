@@ -1,0 +1,18 @@
+# Render（https://render.com）の設定。リポジトリを連携すると、pushのたびに自動でデプロイされる。
+# 1つのWebサービスが、ゲームサーバー（WebSocket）と画面（ビルド済みクライアント）を両方配信する。
+services:
+  - type: web
+    name: yorunoba
+    runtime: node
+    plan: starter # 無料プランはアクセスがないと眠って入店に1分近くかかるため、PoCではstarterを推奨
+    region: singapore # 日本から一番近いリージョン
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # D8以降で使う（AI店員・AI店主）。値はRenderの画面で入力する
+      - key: ANTHROPIC_API_KEY
+        sync: false

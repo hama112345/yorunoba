@@ -1,0 +1,24 @@
+{
+  "name": "yorunoba",
+  "private": true,
+  "description": "ヨルノバ — 居酒屋メタバースのPoC",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @yorunoba/server & npm run dev --workspace @yorunoba/client",
+    "build": "npm run typecheck && npm run build --workspace @yorunoba/client",
+    "start": "npm run start --workspace @yorunoba/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "typescript": "5.9.3"
+  }
+}
