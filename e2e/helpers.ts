@@ -34,14 +34,26 @@ export async function tapWorld(page: Page, x: number, y: number) {
  * 相手が画面の外（またはボタンや会話欄の下）にいたら、人と同じようにそちらへ歩いて画面に入れる。
  * スマホ縦はカメラが自分を追いかけるので、出現位置によっては相手が見えないことがある
  */
-export async function bringIntoView(page: Page, x: number, y: number) {
+export async function bringIntoView(page: Page, x: number, y: number, id?: string) {
   const vp = page.viewportSize()!;
   for (let i = 0; i < 6; i++) {
     const p = await page.evaluate(({ x, y }) => window.__yorunoba!.worldToScreen(x, y), { x, y });
     // 上はHUDと常連パス・誘うボタン、下は会話欄があるので避ける
     const [top, bottom] = [110, vp.height - 150];
-    if (p.x > 30 && p.x < vp.width - 30 && p.y > top && p.y < bottom) return;
-    await page.mouse.click(Math.min(Math.max(p.x, 40), vp.width - 40), Math.min(Math.max(p.y, top + 10), bottom - 10));
+    if (p.x > 30 && p.x < vp.width - 30 && p.y > top && p.y < bottom) break;
+    // 画面の端に相手の札が出ていれば、それを押して近づく（ほかの客を間違えて押さない）
+    // （札は歩いている間も動き続けるので、いまの位置をそのまま押す）
+    const markers = page.locator(`.edge-marker[data-id="${id}"]`);
+    const marker = id && (await markers.count()) > 0 ? await markers.boundingBox({ timeout: 1000 }).catch(() => null) : null;
+    if (marker) await page.mouse.click(marker.x + marker.width / 2, marker.y + marker.height / 2);
+    else await page.mouse.click(Math.min(Math.max(p.x, 40), vp.width - 40), Math.min(Math.max(p.y, top + 10), bottom - 10));
     await page.waitForTimeout(800);
   }
+  await closeGuestCard(page); // 近づく途中でほかの客を押して名札カードが開いていたら閉じる
+}
+
+/** 開いている名札カードを閉じる（カードの下にいる客をタップできなくなるため） */
+export async function closeGuestCard(page: Page) {
+  const close = page.getByRole("dialog").getByRole("button", { name: "閉じる" });
+  if (await close.isVisible()) await close.click();
 }

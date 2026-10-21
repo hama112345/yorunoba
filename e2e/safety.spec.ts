@@ -1,15 +1,20 @@
 import { expect, test, type Page } from "@playwright/test";
-import { avatars, bringIntoView, bubbles, enter, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
+import { avatars, bringIntoView, bubbles, closeGuestCard, enter, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
 
 /** 相手のアバターをタップして名札カードを開き、通報する */
 async function report(page: Page, targetId: string, targetName: string) {
-  const target = (await avatars(page)).find((a) => a.id === targetId)!;
-  await bringIntoView(page, target.x, target.y);
-  page.once("dialog", (d) => d.accept()); // 「通報しますか？」の確認
-  await tapWorld(page, target.x, target.y);
   const card = page.getByRole("dialog");
-  await expect(card).toBeVisible();
-  await expect(card).toContainText(targetName); // 人と同じく、名札で相手を確かめてから押す
+  // 人と同じく、名札で相手を確かめてから押す。近くの別の客が開いたら、閉じて少しずらしてタップし直す
+  const nudges = [{ x: 0, y: 0 }, { x: 0, y: -12 }, { x: 8, y: 6 }];
+  for (const nudge of nudges) {
+    const target = (await avatars(page)).find((a) => a.id === targetId)!;
+    await bringIntoView(page, target.x, target.y, targetId);
+    await tapWorld(page, target.x + nudge.x, target.y + nudge.y);
+    if ((await card.isVisible()) && (await card.textContent())?.includes(targetName)) break;
+    await closeGuestCard(page);
+  }
+  await expect(card).toContainText(targetName);
+  page.once("dialog", (d) => d.accept()); // 「通報しますか？」の確認
   await card.getByRole("button", { name: "通報する" }).click();
   await expect(page.locator("#chat .notice")).toHaveText(/通報を受け付けました/);
 }
