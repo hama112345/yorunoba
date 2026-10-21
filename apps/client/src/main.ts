@@ -1,7 +1,9 @@
+import { EVT, MSG, type ChatEvent, type NoticeEvent } from "@yorunoba/shared";
 import Phaser from "phaser";
 import { fetchStatus, joinIzakaya, loadProfile, saveProfile } from "./net/connection";
 import { BootScene } from "./scenes/BootScene";
 import { IzakayaScene } from "./scenes/IzakayaScene";
+import { showChatBar } from "./ui/chatBar";
 import { showEntrance } from "./ui/entrance";
 import { showError, showWaiting } from "./ui/hud";
 
@@ -10,7 +12,9 @@ declare global {
     /** E2Eテスト用の窓口。本番でも害はないので常に出しておく */
     __yorunoba?: {
       sessionId: string;
-      avatars: () => { id: string; x: number; y: number; tags: string[] }[];
+      avatars: () => { id: string; x: number; y: number; tags: string[]; seat: string }[];
+      bubbles: () => { id: number; text: string; x: number; y: number; alpha: number; reactions: Record<string, number> }[];
+      seats: () => { id: string; x: number; y: number; free: boolean; onScreen: boolean }[];
       isSelfOnScreen: () => boolean;
       worldToScreen: (x: number, y: number) => { x: number; y: number };
     };
@@ -41,10 +45,20 @@ showEntrance(
     const scene = await sceneReady;
     scene.enterRoom(room);
 
+    // 画面下の会話欄。発言はサーバーを通して全員の吹き出しになる
+    const chat = showChatBar((text) => room.send(MSG.chat, { text }));
+    room.onMessage(EVT.chat, (e: ChatEvent) => {
+      const name = room.state.players.get(e.from)?.name ?? "だれか";
+      chat.addLine(name, e.text, e.from === room.sessionId);
+    });
+    room.onMessage(EVT.notice, (e: NoticeEvent) => chat.notice(e.text));
+
     room.onLeave(() => showError("お店から出ました。再読み込みで再入店できます"));
     window.__yorunoba = {
       sessionId: room.sessionId,
       avatars: () => scene.snapshot(),
+      bubbles: () => scene.bubbleSnapshot(),
+      seats: () => scene.seatSnapshot(),
       isSelfOnScreen: () => scene.isSelfOnScreen(),
       worldToScreen: (x, y) => scene.worldToScreen(x, y),
     };

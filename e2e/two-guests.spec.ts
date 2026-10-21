@@ -1,26 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
-
-const avatars = (page: Page) => page.evaluate(() => window.__yorunoba?.avatars() ?? []);
-const sessionId = (page: Page) => page.evaluate(() => window.__yorunoba?.sessionId ?? "");
-
-/** のれんの前（入店画面）で名前・ひとこと札を入れて入店する */
-async function enter(page: Page, name: string, tags: string[]) {
-  await page.goto("/");
-  const form = page.locator("#entrance");
-  await expect(form.getByRole("button", { name: "のれんをくぐる" })).toBeDisabled();
-  await form.getByPlaceholder("名無しの客").fill(name);
-  for (const tag of tags) await form.getByRole("button", { name: `#${tag}` }).click();
-  await form.getByLabel("18歳以上です").check();
-  await form.getByRole("button", { name: "のれんをくぐる" }).click();
-  await expect(form).toBeHidden();
-}
+import { expect, test } from "@playwright/test";
+import { avatars, enter, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
 
 test("2人の客が入店画面から入り、ひとこと札とお互いの移動が見える", async ({ browser, request }, testInfo) => {
-  // 店は1つを共有しているので、前のテストの客が帰りきってから始める
-  // （公開中の店で流すときは、客のいない時間帯に流すこと）
-  await expect
-    .poll(async () => (await (await request.get("/api/status")).json()).guests, { timeout: 20_000 })
-    .toBe(0);
+  await waitForEmptyShop(request);
 
   const ctxA = await browser.newContext(testInfo.project.use);
   const ctxB = await browser.newContext(testInfo.project.use);
@@ -72,9 +54,3 @@ test("2人の客が入店画面から入り、ひとこと札とお互いの移�
   await expect(bob.locator("#status")).toHaveText("いま店内 1人");
   await ctxB.close();
 });
-
-/** 店の座標(x, y)を、いまのカメラの映し方で画面上の位置に直してタップする */
-async function tapWorld(page: Page, x: number, y: number) {
-  const pos = await page.evaluate(({ x, y }) => window.__yorunoba!.worldToScreen(x, y), { x, y });
-  await page.mouse.click(pos.x, pos.y);
-}

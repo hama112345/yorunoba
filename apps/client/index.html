@@ -115,6 +115,101 @@
       }
       #entrance .enter:disabled { opacity: 0.45; cursor: default; }
       #entrance .error { color: #ffd2c4; font-size: 14px; margin: 10px 0 0; }
+
+      /* 画面下の会話欄 */
+      #chat {
+        position: fixed;
+        left: 50%;
+        bottom: 0;
+        transform: translateX(-50%);
+        width: min(640px, 100%);
+        padding: 0 10px max(10px, env(safe-area-inset-bottom));
+        pointer-events: none; /* 会話欄の上の余白は、下の店をタップできるようにする */
+        z-index: 5;
+      }
+      #chat .log {
+        list-style: none;
+        margin: 0 0 6px;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 14px;
+      }
+      #chat .log li {
+        align-self: flex-start;
+        max-width: 100%;
+        background: rgba(20, 14, 26, 0.72);
+        border-radius: 10px;
+        padding: 3px 9px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+        animation: chat-in 160ms ease-out;
+      }
+      #chat .log li b { color: var(--accent); font-weight: 700; margin-right: 2px; }
+      #chat .log li.self b { color: #ffd27a; }
+      #chat .notice[hidden] { display: none; }
+      #chat .notice {
+        margin: 0 0 6px;
+        font-size: 13px;
+        color: #1a1220;
+        background: #ffd27a;
+        border-radius: 8px;
+        padding: 4px 10px;
+        display: inline-block;
+      }
+      #chat .bar {
+        display: flex;
+        gap: 6px;
+        pointer-events: auto;
+        background: var(--panel);
+        border: 1px solid rgba(232, 163, 61, 0.45);
+        border-radius: 14px;
+        padding: 6px;
+      }
+      #chat .bar input {
+        flex: 1;
+        min-width: 0;
+        font-size: 16px; /* 16px未満だとiPhoneが勝手にズームする */
+        padding: 9px 10px;
+        border: 0;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.07);
+        color: var(--text);
+      }
+      #chat .bar button {
+        font-size: 15px;
+        font-weight: 700;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 10px;
+        background: linear-gradient(#c0392b, #8e2a20);
+        color: #fff4e6;
+      }
+      @keyframes chat-in { from { opacity: 0; transform: translateY(4px); } }
+
+      /* 吹き出しをタップしたときの「わかる／笑／へぇ」 */
+      .reaction-picker {
+        position: fixed;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        background: var(--panel);
+        border: 1px solid rgba(232, 163, 61, 0.6);
+        border-radius: 999px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        z-index: 20;
+      }
+      .reaction-picker button {
+        font-size: 15px;
+        padding: 6px 12px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        cursor: pointer;
+      }
+      .reaction-picker button:hover { background: var(--accent); color: #1a1220; }
     </style>
   </head>
   <body>

@@ -25,7 +25,45 @@ export const AVATAR_COLORS = [
 /** クライアント→サーバーのメッセージ */
 export const MSG = {
   move: "move",
+  chat: "chat",
+  sit: "sit",
+  react: "react",
 } as const;
+
+/** サーバー→クライアントのお知らせ（状態として残さず、その場で流すもの） */
+export const EVT = {
+  /** 誰かの発言（吹き出し）。保存はしない */
+  chat: "chat",
+  /** 吹き出しへのワンタップ反応 */
+  reaction: "reaction",
+  /** 本人だけに出す注意（連投しすぎ など） */
+  notice: "notice",
+} as const;
+
+/** 1回の発言の最大文字数（吹き出しに収まる長さ） */
+export const CHAT_MAX_LENGTH = 80;
+
+/** ワンタップ反応の種類。読むだけの人も参加できるように */
+export const REACTIONS = ["わかる", "笑", "へぇ"] as const;
+export type Reaction = (typeof REACTIONS)[number];
+
+export interface ChatEvent {
+  /** 吹き出しの番号（反応を付けるときに使う） */
+  id: number;
+  /** 発言した人の sessionId */
+  from: string;
+  text: string;
+}
+
+export interface ReactionEvent {
+  bubbleId: number;
+  from: string;
+  kind: Reaction;
+}
+
+export interface NoticeEvent {
+  text: string;
+}
 
 /** ひとこと札（話題タグ）。荒らし対策のため自由入力にせず、この中から選ぶ */
 export const TOPIC_TAGS = [
@@ -81,6 +119,25 @@ export function sanitizeTags(raw: unknown): TopicTag[] {
   if (!Array.isArray(raw)) return [];
   const known = raw.filter((t): t is TopicTag => (TOPIC_TAGS as readonly unknown[]).includes(t));
   return [...new Set(known)].slice(0, MAX_TAGS);
+}
+
+/** 発言を整える。制御文字と改行を除き、空白をまとめ、最大文字数で切る。空なら "" */
+export function sanitizeChat(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const text = raw
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return Array.from(text).slice(0, CHAT_MAX_LENGTH).join("");
+}
+
+/** 吹き出しを出しておく時間。短い発言は6秒、長いほど延びて最大12秒 */
+export function bubbleDurationMs(text: string): number {
+  return Math.min(12_000, 6_000 + Array.from(text).length * 80);
+}
+
+export function isReaction(kind: unknown): kind is Reaction {
+  return (REACTIONS as readonly unknown[]).includes(kind);
 }
 
 export function isValidColor(color: unknown): color is number {

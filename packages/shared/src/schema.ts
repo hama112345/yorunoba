@@ -10,6 +10,8 @@ export const Player = schema(
     y: t.int16().default(0),
     /** ひとこと札（TOPIC_TAGS の中から最大2つ、カンマ区切り） */
     tags: t.string().default(""),
+    /** 座っている席のID（layout.ts の SEATS）。立っていれば "" */
+    seat: t.string().default(""),
   },
   "Player",
 );

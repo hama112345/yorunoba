@@ -6,6 +6,12 @@ import {
   NAME_MAX_LENGTH,
   clampToFloor,
   isValidColor,
+  CHAT_MAX_LENGTH,
+  SEATS,
+  bubbleDurationMs,
+  findSeat,
+  isReaction,
+  sanitizeChat,
   sanitizeName,
   sanitizeTags,
 } from "./index";
@@ -50,5 +56,37 @@ describe("sanitizeTags", () => {
   it("returns an empty list for junk input", () => {
     expect(sanitizeTags(undefined)).toEqual([]);
     expect(sanitizeTags("サッカー")).toEqual([]);
+  });
+});
+
+describe("sanitizeChat", () => {
+  it("trims, flattens newlines and collapses spaces", () => {
+    expect(sanitizeChat("  こんばんは\n\nおつかれ   さま  ")).toBe("こんばんは おつかれ さま");
+  });
+
+  it("cuts long text by characters (not bytes) and rejects junk", () => {
+    expect(Array.from(sanitizeChat("🍺".repeat(200)))).toHaveLength(CHAT_MAX_LENGTH);
+    expect(sanitizeChat("   ")).toBe("");
+    expect(sanitizeChat(42)).toBe("");
+  });
+});
+
+describe("bubbleDurationMs", () => {
+  it("keeps bubbles between 6 and 12 seconds", () => {
+    expect(bubbleDurationMs("うん")).toBeGreaterThanOrEqual(6_000);
+    expect(bubbleDurationMs("あ".repeat(80))).toBe(12_000);
+  });
+});
+
+describe("reactions and seats", () => {
+  it("accepts only known reactions", () => {
+    expect(isReaction("わかる")).toBe(true);
+    expect(isReaction("いいね")).toBe(false);
+  });
+
+  it("finds seats by id and keeps ids unique", () => {
+    expect(findSeat("counter-1")).toBeDefined();
+    expect(findSeat("nope")).toBeUndefined();
+    expect(new Set(SEATS.map((s) => s.id)).size).toBe(SEATS.length);
   });
 });

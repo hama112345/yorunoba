@@ -41,5 +41,12 @@ export const TABLE_SEATS: Seat[] = TABLES.flatMap((t, ti) => [
   { id: `table${ti + 1}-4`, x: t.x + t.w - 35, y: t.y + t.h + 22 },
 ]);
 
+/** 座れる場所すべて（カウンター席＋テーブル席） */
+export const SEATS: Seat[] = [...COUNTER_SEATS, ...TABLE_SEATS];
+
+export function findSeat(id: unknown): Seat | undefined {
+  return SEATS.find((s) => s.id === id);
+}
+
 /** 入口（のれん）。下の壁の中央 */
 export const ENTRANCE: Rect = { x: 420, y: 600, w: 120, h: 40 };

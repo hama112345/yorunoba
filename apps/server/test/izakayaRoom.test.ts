@@ -1,5 +1,17 @@
 import { Callbacks, Client, type Room } from "@colyseus/sdk";
-import { FLOOR, IzakayaState, MSG, ROOM_IZAKAYA, type JoinOptions, type ShopStatus } from "@yorunoba/shared";
+import {
+  EVT,
+  FLOOR,
+  IzakayaState,
+  MSG,
+  ROOM_IZAKAYA,
+  SEATS,
+  type ChatEvent,
+  type JoinOptions,
+  type NoticeEvent,
+  type ReactionEvent,
+  type ShopStatus,
+} from "@yorunoba/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer } from "../src/app.js";
 
@@ -94,5 +106,84 @@ describe("IzakayaRoom", () => {
 
     await a.leave();
     await b.leave();
+  });
+
+  it("broadcasts sanitized chat to everyone, with a rate limit", async () => {
+    const alice = await join("アリス");
+    const bob = await join("ボブ");
+    await waitFor(() => playerCount(bob) === 2);
+
+    const heard: ChatEvent[] = [];
+    bob.onMessage(EVT.chat, (e: ChatEvent) => heard.push(e));
+    const notices: NoticeEvent[] = [];
+    alice.onMessage(EVT.notice, (e: NoticeEvent) => notices.push(e));
+    alice.onMessage(EVT.chat, () => {});
+
+    alice.send(MSG.chat, { text: "  こんばんは\nおつかれさま  " });
+    alice.send(MSG.chat, { text: "   " }); // 空は無視
+    await waitFor(() => heard.length === 1);
+    expect(heard[0]).toMatchObject({ from: alice.sessionId, text: "こんばんは おつかれさま" });
+
+    // 4回目以降は連投制限で届かず、本人にだけ注意が出る
+    for (let i = 0; i < 5; i++) alice.send(MSG.chat, { text: `連投${i}` });
+    await waitFor(() => notices.length > 0);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(heard.length).toBeLessThanOrEqual(3);
+
+    await alice.leave();
+    await bob.leave();
+  });
+
+  it("lets guests sit on a free seat only, and stand up by walking", async () => {
+    const alice = await join("アリス");
+    const bob = await join("ボブ");
+    await waitFor(() => playerCount(bob) === 2);
+    const seat = SEATS[0];
+    const notices: NoticeEvent[] = [];
+    bob.onMessage(EVT.notice, (e: NoticeEvent) => notices.push(e));
+
+    alice.send(MSG.sit, { seatId: seat.id });
+    await waitFor(() => playerOf(bob, alice.sessionId)?.seat === seat.id);
+    expect(playerOf(bob, alice.sessionId)).toMatchObject({ x: seat.x, y: seat.y });
+
+    bob.send(MSG.sit, { seatId: seat.id }); // 取り合い
+    bob.send(MSG.sit, { seatId: "存在しない席" });
+    await waitFor(() => notices.length === 1);
+    expect(playerOf(alice, bob.sessionId)?.seat).toBe("");
+
+    alice.send(MSG.move, { x: 300, y: 400 });
+    await waitFor(() => playerOf(bob, alice.sessionId)?.seat === "");
+
+    await alice.leave();
+    await bob.leave();
+  });
+
+  it("relays one-tap reactions to existing bubbles of other guests", async () => {
+    const alice = await join("アリス");
+    const bob = await join("ボブ");
+    await waitFor(() => playerCount(bob) === 2);
+
+    const chats: ChatEvent[] = [];
+    bob.onMessage(EVT.chat, (e: ChatEvent) => chats.push(e));
+    alice.onMessage(EVT.chat, () => {});
+    const reactions: ReactionEvent[] = [];
+    alice.onMessage(EVT.reaction, (e: ReactionEvent) => reactions.push(e));
+    bob.onMessage(EVT.reaction, () => {});
+
+    alice.send(MSG.chat, { text: "今日も一日おつかれ" });
+    await waitFor(() => chats.length === 1);
+    const bubbleId = chats[0].id;
+
+    bob.send(MSG.react, { bubbleId, kind: "わかる" });
+    bob.send(MSG.react, { bubbleId, kind: "わかる" }); // 同じ反応は1回まで
+    bob.send(MSG.react, { bubbleId, kind: "いいね" }); // 知らない種類
+    bob.send(MSG.react, { bubbleId: 9999, kind: "笑" }); // 知らない吹き出し
+    alice.send(MSG.react, { bubbleId, kind: "笑" }); // 自分の発言
+    await waitFor(() => reactions.length === 1);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(reactions).toEqual([{ bubbleId, from: bob.sessionId, kind: "わかる" }]);
+
+    await alice.leave();
+    await bob.leave();
   });
 });
