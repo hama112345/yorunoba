@@ -15,6 +15,7 @@ import {
 } from "@yorunoba/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer } from "../src/app.js";
+import { aiStaffSettings, useAiStaff, type AiStaff, type ReviewLine } from "../src/moderation/aiStaff.js";
 
 const PORT = 2601;
 const server = createServer();
@@ -49,6 +50,9 @@ function playerOf(room: IzakayaRoom, sessionId: string) {
 
 describe("IzakayaRoom", () => {
   beforeAll(async () => {
+    // AI店員は基本オフ（使うテストだけ偽物を入れる）。見回りはテスト用に短い間隔で
+    useAiStaff(null);
+    aiStaffSettings.patrolMs = 100;
     await server.listen(PORT);
   });
 
@@ -278,6 +282,88 @@ describe("IzakayaRoom", () => {
     delete process.env.ADMIN_TOKEN;
     await owner.leave();
     await guest.leave();
+  });
+
+  it("lets the AI staff warn about what the rules missed, and jail after repeated warnings", async () => {
+    const seen: ReviewLine[][] = [];
+    const fake: AiStaff = {
+      async review(lines) {
+        seen.push(lines);
+        return lines.flatMap((l, index) =>
+          l.text.includes("ブス") ? [{ index, category: "harassment" as const, severity: "warn" as const, note: "悪口" }] : [],
+        );
+      },
+      async triage() {
+        return null;
+      },
+    };
+    useAiStaff(fake);
+    const troll = await join("荒らし", undefined, { deviceId: device() });
+    const bob = await join("ボブ", undefined, { deviceId: device() });
+    await waitFor(() => playerCount(bob) === 2);
+    const heard: ChatEvent[] = [];
+    bob.onMessage(EVT.chat, (e: ChatEvent) => heard.push(e));
+    bob.onMessage(EVT.notice, () => {});
+    troll.onMessage(EVT.chat, () => {});
+    const notices: NoticeEvent[] = [];
+    troll.onMessage(EVT.notice, (e: NoticeEvent) => notices.push(e));
+    const jailed: JailedEvent[] = [];
+    troll.onMessage(EVT.jailed, (e: JailedEvent) => jailed.push(e));
+
+    // ふつうの発言は注意されない。悪口は吹き出しになったあと、本人にだけ店員から注意
+    bob.send(MSG.chat, { text: "こんばんは" });
+    troll.send(MSG.chat, { text: "お前ブスだな" });
+    await waitFor(() => notices.length === 1);
+    expect(notices[0].text).toContain("店員より");
+    expect(heard.map((h) => h.text)).toContain("お前ブスだな");
+    // AIには名前を渡さない（仮の呼び名だけ）
+    const all = seen.flat();
+    expect(all.map((l) => l.speaker)).toEqual(expect.arrayContaining(["客1"]));
+    expect(JSON.stringify(seen)).not.toContain("荒らし");
+    expect(JSON.stringify(seen)).not.toContain("ボブ");
+
+    troll.send(MSG.chat, { text: "ブスはブス" });
+    troll.send(MSG.chat, { text: "やっぱりブス" });
+    await waitFor(() => jailed.length === 1);
+    expect(jailed[0].reason).toContain("店員");
+    await waitFor(() => playerCount(bob) === 1);
+    expect(notices.filter((n) => n.text.startsWith("店員より")).length).toBeGreaterThanOrEqual(2);
+
+    useAiStaff(null);
+    await bob.leave();
+  });
+
+  it("lets the AI staff handle a first report without waiting for a second one", async () => {
+    let asked: { reported: string; lines: ReviewLine[] } | undefined;
+    useAiStaff({
+      async review() {
+        return [];
+      },
+      async triage(reported, lines) {
+        asked = { reported, lines };
+        const said = lines.filter((l) => l.speaker === reported).map((l) => l.text).join();
+        return said.includes("殴") ? { action: "jail", note: "脅し" } : { action: "none", note: "" };
+      },
+    });
+    const target = await join("物騒な人", undefined, { deviceId: device() });
+    const a = await join("A", undefined, { deviceId: device() });
+    await waitFor(() => playerCount(a) === 2);
+    target.onMessage(EVT.chat, () => {});
+    a.onMessage(EVT.chat, () => {});
+    a.onMessage(EVT.notice, () => {});
+    const jailed: JailedEvent[] = [];
+    target.onMessage(EVT.jailed, (e: JailedEvent) => jailed.push(e));
+
+    a.send(MSG.chat, { text: "どうしたの" });
+    target.send(MSG.chat, { text: "今から殴りに行くぞ" });
+    await new Promise((r) => setTimeout(r, 200));
+    a.send(MSG.report, { target: target.sessionId });
+    await waitFor(() => jailed.length === 1);
+    expect(jailed[0].reason).toContain("店員が確認");
+    expect(asked?.lines.some((l) => l.speaker === asked?.reported && l.text.includes("殴"))).toBe(true);
+
+    useAiStaff(null);
+    await a.leave();
   });
 
   it("spawns new guests apart from each other near the entrance", async () => {

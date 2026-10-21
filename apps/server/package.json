@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
     "@colyseus/core": "0.18.21",
     "@colyseus/schema": "5.0.42",
     "@colyseus/ws-transport": "0.18.4",

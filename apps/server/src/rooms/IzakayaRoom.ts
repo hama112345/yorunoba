@@ -31,6 +31,7 @@ import {
 import { RateLimiter } from "../chat/rateLimit.js";
 import { checkChat } from "../chat/rules.js";
 import { hoursAnnouncement, hoursEnforced } from "../hours.js";
+import { aiStaffSettings, getAiStaff, type FlagCategory, type ReviewLine } from "../moderation/aiStaff.js";
 import { ReportBook, jailList } from "../moderation/jail.js";
 import { notifyStaff } from "../moderation/notify.js";
 
@@ -60,6 +61,18 @@ interface RecentChat extends ChatEvent {
   /** 反応済みの「sessionId:種類」。同じ人が同じ反応を何度も押せないように */
   reactedBy: Set<string>;
 }
+
+/** AI店員がまとめて見る発言の最大数（1回の見回りあたり） */
+const PATROL_BATCH = 20;
+
+/** AI店員の注意。客に見せる文はこちらで決めておく（AIの文章をそのまま客に見せない） */
+const AI_NOTICE: Record<FlagCategory, string> = {
+  harassment: "店員より：ほかのお客さんへの強い言葉は控えてください",
+  sexual: "店員より：性的な話題や誘いは、この店ではご遠慮ください",
+  contact: "店員より：連絡先の交換や、外のサービスへの誘導はできません",
+  spam: "店員より：宣伝や同じ内容の連投はご遠慮ください",
+  danger: "店員より：危ないことや違法なことの話は、この店ではできません",
+};
 
 /** 入店時に確かめた情報（onAuth の戻り値。client.auth に入る） */
 interface GuestAuth {
@@ -110,6 +123,11 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   /** NGワード・連絡先の書き込み回数（sessionId → 回数） */
   private strikes = new Map<string, number>();
   private recentChats: RecentChat[] = [];
+  /** AI店員がまだ見ていない発言（メモリ上だけ。見回りが終われば消える） */
+  private patrolQueue: { from: string; text: string }[] = [];
+  private patrolling = false;
+  /** 留置所へ送っている途中の客 */
+  private jailing = new Set<string>();
   private lastBubbleId = 0;
   private phase = shopPhase();
 
@@ -130,6 +148,8 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   onCreate() {
     // 営業の節目（開店・ラストオーダー・閉店）を店内に知らせる
     this.clock.setInterval(() => this.checkHours(), 20_000);
+    // AI店員の見回り（APIキーが無いときは何もしない）
+    this.clock.setInterval(() => void this.patrol(), aiStaffSettings.patrolMs);
 
     this.onMessage(MSG.move, (client: Client, payload: Partial<MovePayload>) => {
       const player = this.state.players.get(client.sessionId);
@@ -166,15 +186,15 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
       if (!verdict.ok) {
         // 全員には流さず、本人にだけ注意。くり返したら留置所へ
         this.notice(client, verdict.message);
-        const strikes = (this.strikes.get(client.sessionId) ?? 0) + 1;
-        this.strikes.set(client.sessionId, strikes);
-        if (strikes >= RULE_STRIKES_TO_JAIL) this.sendToJail(client, "店のルール（NGワード・連絡先）をくり返し破ったため");
+        this.addStrikes(client, 1, "店のルール（NGワード・連絡先）をくり返し破ったため");
         return;
       }
       const event: ChatEvent = { id: ++this.lastBubbleId, from: client.sessionId, text };
       this.recentChats.push({ ...event, reactedBy: new Set() });
       if (this.recentChats.length > RECENT_CHAT_LIMIT) this.recentChats.shift();
       this.broadcast(EVT.chat, event);
+      // 吹き出しはすぐに出し、AI店員はあとからまとめて見回る（会話を待たせない）
+      if (getAiStaff()) this.patrolQueue.push({ from: client.sessionId, text });
     });
 
     this.onMessage(MSG.react, (client: Client, payload: { bubbleId?: unknown; kind?: unknown }) => {
@@ -206,6 +226,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
       this.notice(client, "通報を受け付けました。ありがとうございます");
       void notifyStaff(`📣 通報：${target.name}（${reporters}人目）\n${this.recentLinesOf(targetId)}`);
       if (reporters >= REPORTS_TO_JAIL) this.sendToJail(targetClient, "複数のお客さんから通報があったため");
+      else void this.triageReport(targetId);
     });
   }
 
@@ -229,10 +250,77 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     this.chatLimiter.forget(client.sessionId);
     this.reactionLimiter.forget(client.sessionId);
     this.strikes.delete(client.sessionId);
+    this.patrolQueue = this.patrolQueue.filter((q) => q.from !== client.sessionId);
+    this.jailing.delete(client.sessionId);
+  }
+
+  /** 違反の回数を足す。決まった回数に達したら留置所へ */
+  private addStrikes(client: Client, count: number, reason: string) {
+    const strikes = (this.strikes.get(client.sessionId) ?? 0) + count;
+    this.strikes.set(client.sessionId, strikes);
+    if (strikes >= RULE_STRIKES_TO_JAIL) this.sendToJail(client, reason);
+  }
+
+  /** 発言者を「客1」「客2」…の仮の呼び名にする（AIには名前を渡さない） */
+  private aliases() {
+    const names = new Map<string, string>();
+    return (sessionId: string) => {
+      if (!names.has(sessionId)) names.set(sessionId, `客${names.size + 1}`);
+      return names.get(sessionId)!;
+    };
+  }
+
+  /**
+   * AI店員の見回り：まだ見ていない発言をまとめてAIに見せ、問題があれば本人にだけ注意する。
+   * AIの注意はNGワードと同じく1回の違反として数え、特に悪質なものは2回分（3回で留置所）。
+   */
+  private async patrol() {
+    const staff = getAiStaff();
+    if (!staff || this.patrolling || this.patrolQueue.length === 0) return;
+    this.patrolling = true;
+    const batch = this.patrolQueue.splice(0, PATROL_BATCH);
+    const alias = this.aliases();
+    const lines: ReviewLine[] = batch.map((b) => ({ speaker: alias(b.from), text: b.text }));
+    try {
+      const flags = await staff.review(lines);
+      for (const flag of flags) {
+        const { from } = batch[flag.index];
+        const client = this.clients.get(from);
+        if (!client) continue; // もう店を出ている
+        this.notice(client, AI_NOTICE[flag.category]);
+        const name = this.state.players.get(from)?.name ?? "だれか";
+        void notifyStaff(`🤖 AI店員が注意：${name}（${flag.category}・${flag.severity}）${flag.note}`);
+        this.addStrikes(client, flag.severity === "jail" ? 2 : 1, "店員が何度か注意しても、ルールに反する発言が続いたため");
+      }
+    } finally {
+      this.patrolling = false;
+    }
+  }
+
+  /** 通報の一次審査：1人目の通報で、AI店員が直近の発言を見て判断する（2人目を待たずに対応できる） */
+  private async triageReport(targetId: string) {
+    const staff = getAiStaff();
+    if (!staff) return;
+    const alias = this.aliases();
+    const reported = alias(targetId);
+    const lines = this.recentChats.slice(-15).map((c) => ({ speaker: alias(c.from), text: c.text }));
+    if (!lines.some((l) => l.speaker === reported)) return; // 発言がなければ判断しない（人の通報に任せる）
+    const verdict = await staff.triage(reported, lines);
+    const client = this.clients.get(targetId);
+    if (!verdict || !client) return;
+    const name = this.state.players.get(targetId)?.name ?? "だれか";
+    void notifyStaff(`🤖 AI店員の確認：${name} → ${verdict.action}　${verdict.note}`);
+    if (verdict.action === "jail") this.sendToJail(client, "通報を受けて店員が確認したため");
+    else if (verdict.action === "warn") {
+      this.notice(client, "店員より：通報がありました。ほかのお客さんが嫌な思いをしないよう、言葉づかいに気をつけてください");
+    }
   }
 
   /** 留置所へ：一定時間の入店禁止にして、本人に知らせてから店の外へ出す */
   private sendToJail(client: Client, reason: string) {
+    // 同じ人を二重に送らない（退店の処理が終わるまでの間に、別の違反が重なることがある）
+    if (this.jailing.has(client.sessionId)) return;
+    this.jailing.add(client.sessionId);
     const auth = (client.auth as GuestAuth | undefined) ?? { staff: false };
     const until = jailList.jail(jailKeys(auth), JAIL_MS);
     const event: JailedEvent = { until, reason };

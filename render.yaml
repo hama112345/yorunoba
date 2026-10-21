@@ -17,4 +17,4 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # D8（AI店員）で ANTHROPIC_API_KEY を追加する。値はRenderの画面で入力し、ここには書かない
+      # AI店員を使うときは ANTHROPIC_API_KEY を追加する。値はRenderの画面で入力し、ここには書かない

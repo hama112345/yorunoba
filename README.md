@@ -51,6 +51,9 @@ GitHubのリポジトリが非公開でも公開でも、この手順で公開�
 | `VITE_POSTHOG_HOST` | PostHogの送り先（EUで作った場合は `https://eu.i.posthog.com`） | 既定は米国（`https://us.i.posthog.com`） |
 | `VITE_WAITLIST_URL` | 事前登録フォームのURL（`https://` で始まる） | 常連パスと準備中画面に「お知らせを受け取る」が出る |
 | `SHOP_HOURS_ENFORCED` | `true` | 21:00〜24:00（日本時間）以外は入店できなくなる。一般公開（D10）から |
+| `ANTHROPIC_API_KEY` | AnthropicのAPIキー | AI店員（Claude Haiku 5.5）が見回りと通報の一次審査を始める。起動時のログに「AI店員: 準備OK」と出れば動いている |
+| `AI_STAFF` | `off` | APIキーを入れたまま、AI店員だけを止める |
+| `AI_STAFF_DAILY_LIMIT` | 数字（既定 3000） | AI店員が1日に呼べる回数の上限（費用の上限） |
 | `JAIL_BY_IP` | `true` | 留置所の判定に端末IDに加えてIPも使う（携帯回線の巻き込みに注意） |
 
 PostHogのキーの取り方：[PostHog](https://posthog.com) に登録 → プロジェクトを作る → 「Project settings」の「Project API key」をコピーする。
@@ -74,4 +77,5 @@ npm run test:e2e     # 2つのブラウザで入店→移動が同期される�
 | ホスティング | Render（1サービス） |
 | テスト | Vitest, Playwright |
 | 計測 | PostHog（キーを入れたときだけ） |
-| 予定 | Claude Haiku 5.5（AI店員・AI常連） |
+| AI店員 | Claude Haiku 5.5（APIキーを入れたときだけ） |
+| 予定 | Claude Haiku 5.5（AI常連） |
