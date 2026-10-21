@@ -51,6 +51,9 @@ const game = new Phaser.Game({
   // 低スペック端末でコマ落ちしても歩く速さが変わらないよう、実時間のdeltaを使う。
   // 会話が主役で激しい動きはないので30fpsに抑え、スマホの電池と発熱を減らす（長居する前提のため）
   fps: { smoothStep: false, limit: 30 },
+  // 画面の上に重ねたボタン（会話欄・反応の選択肢・常連パスなど）を押したとき、その下の店まで押されないようにする。
+  // 既定ではPhaserがウィンドウ全体のタップも拾うため、「わかる」を押すと下の吹き出しが押し直されて反応が届かないことがあった
+  input: { windowEvents: false },
   scene: [BootScene, IzakayaScene],
 });
 

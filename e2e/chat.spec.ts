@@ -13,9 +13,12 @@ test("吹き出しで話し、ワンタップで反応し、席に座れる", as
 
   // 会話の前に席へ。ボブが画面に映っている空き席をタップ → 歩いて座り、アリスの画面でも座っている
   const bobId = await sessionId(bob);
-  const me = (await avatars(bob)).find((a) => a.id === bobId)!;
+  const everyone = await avatars(bob);
+  const me = everyone.find((a) => a.id === bobId)!;
+  // 人と同じく、ほかの客が前に立っていない空き席を選ぶ（立っている人をタップすると名札カードが開く）
+  const others = everyone.filter((a) => a.id !== bobId);
   const seat = (await seats(bob))
-    .filter((s) => s.free && s.onScreen)
+    .filter((s) => s.free && s.onScreen && others.every((o) => Math.hypot(o.x - s.x, o.y - s.y) > 60))
     .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
   await tapWorld(bob, seat.x, seat.y);
   await expect.poll(async () => (await avatars(alice)).find((a) => a.id === bobId)?.seat).toBe(seat.id);
@@ -24,6 +27,22 @@ test("吹き出しで話し、ワンタップで反応し、席に座れる", as
       const b = (await avatars(alice)).find((a) => a.id === bobId)!;
       return Math.hypot(b.x - seat.x, b.y - seat.y) < 2;
     }, { timeout: 15_000 })
+    .toBe(true);
+
+  // アリスがボブの席の近くまで歩いてくる（スマホ縦はカメラが自分を追いかけるので、離れていると相手が画面の外になる）
+  await bringIntoView(alice, seat.x, seat.y);
+  const near = { x: seat.x + (seat.x < 480 ? 70 : -70), y: Math.min(seat.y + 60, 560) };
+  await tapWorld(alice, near.x, near.y);
+  await expect
+    .poll(
+      async () => {
+        const a = (await avatars(bob)).find((a) => a.id !== bobId)!;
+        const p = await bob.evaluate(({ x, y }) => window.__yorunoba!.worldToScreen(x, y), { x: a.x, y: a.y - 60 });
+        const vp = bob.viewportSize()!;
+        return p.x > 30 && p.x < vp.width - 30 && p.y > 110 && p.y < vp.height - 150;
+      },
+      { timeout: 15_000 },
+    )
     .toBe(true);
 
   // アリスが会話欄から話しかける → ボブの画面に吹き出しと会話欄の行が出る
