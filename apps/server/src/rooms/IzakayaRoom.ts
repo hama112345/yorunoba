@@ -27,6 +27,7 @@ import {
   type MovePayload,
   type NoticeEvent,
   type ReactionEvent,
+  type WipeEvent,
 } from "@yorunoba/shared";
 import { RateLimiter } from "../chat/rateLimit.js";
 import { checkChat } from "../chat/rules.js";
@@ -124,7 +125,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   private strikes = new Map<string, number>();
   private recentChats: RecentChat[] = [];
   /** AI店員がまだ見ていない発言（メモリ上だけ。見回りが終われば消える） */
-  private patrolQueue: { from: string; text: string }[] = [];
+  private patrolQueue: { id: number; from: string; text: string }[] = [];
   private patrolling = false;
   /** 留置所へ送っている途中の客 */
   private jailing = new Set<string>();
@@ -194,7 +195,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
       if (this.recentChats.length > RECENT_CHAT_LIMIT) this.recentChats.shift();
       this.broadcast(EVT.chat, event);
       // 吹き出しはすぐに出し、AI店員はあとからまとめて見回る（会話を待たせない）
-      if (getAiStaff()) this.patrolQueue.push({ from: client.sessionId, text });
+      if (getAiStaff()) this.patrolQueue.push({ id: event.id, from: client.sessionId, text });
     });
 
     this.onMessage(MSG.react, (client: Client, payload: { bubbleId?: unknown; kind?: unknown }) => {
@@ -271,7 +272,8 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   }
 
   /**
-   * AI店員の見回り：まだ見ていない発言をまとめてAIに見せ、問題があれば本人にだけ注意する。
+   * AI店員の見回り：まだ見ていない発言をまとめてAIに見せ、問題があればその発言を全員の画面から消し、
+   * 本人にだけ注意する。
    * AIの注意はNGワードと同じく1回の違反として数え、特に悪質なものは2回分（3回で留置所）。
    */
   private async patrol() {
@@ -284,7 +286,9 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     try {
       const flags = await staff.review(lines);
       for (const flag of flags) {
-        const { from } = batch[flag.index];
+        const { id, from } = batch[flag.index];
+        const wipe: WipeEvent = { bubbleId: id };
+        this.broadcast(EVT.wipe, wipe);
         const client = this.clients.get(from);
         if (!client) continue; // もう店を出ている
         this.notice(client, AI_NOTICE[flag.category]);

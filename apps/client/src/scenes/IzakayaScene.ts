@@ -8,6 +8,7 @@ import {
   clampToFloor,
   type ChatEvent,
   type ReactionEvent,
+  type WipeEvent,
 } from "@yorunoba/shared";
 import Phaser from "phaser";
 import { track } from "../analytics";
@@ -108,6 +109,8 @@ export class IzakayaScene extends Phaser.Scene {
 
     room.onMessage(EVT.chat, (e: ChatEvent) => this.showBubble(e));
     room.onMessage(EVT.reaction, (e: ReactionEvent) => this.bubbles.get(e.bubbleId)?.addReaction(e.kind));
+    // AI店員が消した発言は、吹き出しがまだ出ていればすぐ消す
+    room.onMessage(EVT.wipe, (e: WipeEvent) => this.bubbles.get(e.bubbleId)?.wipe());
 
     this.addSeatSpots(room);
 

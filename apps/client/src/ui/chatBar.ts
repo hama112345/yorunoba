@@ -5,7 +5,9 @@ const LOG_LINES = 5;
 const LOG_LIFETIME_MS = 60_000;
 
 export interface ChatBar {
-  addLine(name: string, text: string, isSelf: boolean): void;
+  addLine(name: string, text: string, isSelf: boolean, id?: number): void;
+  /** AI店員が消した発言を「おしぼりで拭きました」に置き換える */
+  wipe(id: number): void;
   notice(text: string): void;
   /** 店からのお知らせ（開店・ラストオーダーなど）。普通の発言と見分けがつくように出す */
   announce(text: string): void;
@@ -59,15 +61,22 @@ export function showChatBar(onSend: (text: string) => void): ChatBar {
   let noticeTimer: number | undefined;
 
   return {
-    addLine(name, text, isSelf) {
+    addLine(name, text, isSelf, id) {
       const li = document.createElement("li");
       if (isSelf) li.className = "self";
+      if (id !== undefined) li.dataset.id = String(id);
       const who = document.createElement("b");
       who.textContent = name;
       li.append(who, document.createTextNode(` ${text}`)); // textContentで入れる（HTMLとして解釈させない）
       log.append(li);
       while (log.children.length > LOG_LINES) log.firstElementChild?.remove();
       setTimeout(() => li.remove(), LOG_LIFETIME_MS);
+    },
+    wipe(id) {
+      const li = log.querySelector<HTMLLIElement>(`li[data-id="${id}"]`);
+      if (!li) return;
+      li.className = "wiped";
+      li.textContent = "🧽 店員がおしぼりで拭きました";
     },
     announce(text) {
       const li = document.createElement("li");

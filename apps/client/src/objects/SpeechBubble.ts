@@ -19,6 +19,7 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
   private countLabel: Phaser.GameObjects.Text;
   private boxHeight: number;
   private fadeTimer?: Phaser.Time.TimerEvent;
+  private hit: Phaser.GameObjects.Zone;
 
   constructor(scene: Phaser.Scene, bubbleId: number, text: string, onTap: (b: SpeechBubble, p: Phaser.Input.Pointer) => void) {
     super(scene, 0, 0);
@@ -60,6 +61,7 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
     // 吹き出し全体を押せるようにする（見えない当たり判定）
     const hit = scene.add.zone(0, -h / 2 - 8, w, h + 8).setInteractive({ useHandCursor: true });
     hit.on("pointerdown", (pointer: Phaser.Input.Pointer) => onTap(this, pointer));
+    this.hit = hit;
 
     this.add([bg, label, this.countLabel, hit]);
     this.setDepth(BUBBLE_DEPTH);
@@ -100,6 +102,13 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
 
   reactionCounts(): Partial<Record<Reaction, number>> {
     return Object.fromEntries(this.counts);
+  }
+
+  /** AI店員が消すとき：すぐ薄くして消す（反応もできなくする） */
+  wipe() {
+    this.fadeTimer?.remove();
+    this.hit.disableInteractive();
+    this.scene.tweens.add({ targets: this, alpha: 0, duration: 250, onComplete: () => this.destroy() });
   }
 
   private scheduleFade(ms: number) {

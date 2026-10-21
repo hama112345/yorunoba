@@ -12,6 +12,7 @@ import {
   type NoticeEvent,
   type ReactionEvent,
   type ShopStatus,
+  type WipeEvent,
 } from "@yorunoba/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer } from "../src/app.js";
@@ -304,7 +305,10 @@ describe("IzakayaRoom", () => {
     const heard: ChatEvent[] = [];
     bob.onMessage(EVT.chat, (e: ChatEvent) => heard.push(e));
     bob.onMessage(EVT.notice, () => {});
+    const wiped: WipeEvent[] = [];
+    bob.onMessage(EVT.wipe, (e: WipeEvent) => wiped.push(e));
     troll.onMessage(EVT.chat, () => {});
+    troll.onMessage(EVT.wipe, () => {});
     const notices: NoticeEvent[] = [];
     troll.onMessage(EVT.notice, (e: NoticeEvent) => notices.push(e));
     const jailed: JailedEvent[] = [];
@@ -316,6 +320,9 @@ describe("IzakayaRoom", () => {
     await waitFor(() => notices.length === 1);
     expect(notices[0].text).toContain("店員より");
     expect(heard.map((h) => h.text)).toContain("お前ブスだな");
+    // その吹き出しは全員の画面から消える（ふつうの発言は消えない）
+    await waitFor(() => wiped.length === 1);
+    expect(wiped[0].bubbleId).toBe(heard.find((h) => h.text === "お前ブスだな")!.id);
     // AIには名前を渡さない（仮の呼び名だけ）
     const all = seen.flat();
     expect(all.map((l) => l.speaker)).toEqual(expect.arrayContaining(["客1"]));

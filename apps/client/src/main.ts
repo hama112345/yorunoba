@@ -5,6 +5,7 @@ import {
   type ChatEvent,
   type JailedEvent,
   type NoticeEvent,
+  type WipeEvent,
 } from "@yorunoba/shared";
 import Phaser from "phaser";
 import { campaignProps, initAnalytics, track } from "./analytics";
@@ -91,7 +92,7 @@ showEntrance(
     });
     room.onMessage(EVT.chat, (e: ChatEvent) => {
       const name = room.state.players.get(e.from)?.name ?? "だれか";
-      chat.addLine(name, e.text, e.from === room.sessionId);
+      chat.addLine(name, e.text, e.from === room.sessionId, e.id);
       if (e.from !== room.sessionId) ambience.pop();
     });
 
@@ -107,6 +108,7 @@ showEntrance(
     });
     room.onMessage(EVT.notice, (e: NoticeEvent) => chat.notice(e.text));
     room.onMessage(EVT.announce, (e: AnnounceEvent) => chat.announce(e.text));
+    room.onMessage(EVT.wipe, (e: WipeEvent) => chat.wipe(e.bubbleId));
 
     // 右上の「常連パス（準備中）」と「誘う」
     const actions = document.getElementById("actions")!;

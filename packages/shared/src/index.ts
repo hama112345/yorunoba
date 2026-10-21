@@ -43,10 +43,16 @@ export const EVT = {
   jailed: "jailed",
   /** 店からのお知らせ（開店・ラストオーダー・閉店） */
   announce: "announce",
+  /** AI店員が問題のある発言を全員の画面から消す（「店員がおしぼりで拭きました」） */
+  wipe: "wipe",
 } as const;
 
 export interface AnnounceEvent {
   text: string;
+}
+
+export interface WipeEvent {
+  bubbleId: number;
 }
 
 /** 留置所（入店禁止）の時間 */
