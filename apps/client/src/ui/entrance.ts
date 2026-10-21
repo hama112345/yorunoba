@@ -1,7 +1,27 @@
-import { AVATAR_COLORS, MAX_TAGS, NAME_MAX_LENGTH, TOPIC_TAGS } from "@yorunoba/shared";
+import {
+  AVATAR_COLORS,
+  CLOSE_HOUR,
+  LAST_ORDER,
+  MAX_TAGS,
+  NAME_MAX_LENGTH,
+  OPEN_HOUR,
+  TOPIC_TAGS,
+  type ShopStatus,
+} from "@yorunoba/shared";
+import { track } from "../analytics";
 import type { Profile } from "../net/connection";
+import { WAITLIST_URL } from "./regularsPass";
 
 const hex = (color: number) => `#${color.toString(16).padStart(6, "0")}`;
+const pad = (n: number) => String(n).padStart(2, "0");
+const HOURS_TEXT = `営業 ${OPEN_HOUR}:00〜${CLOSE_HOUR}:00（日本時間・ラストオーダー ${LAST_ORDER.hour}:${pad(LAST_ORDER.minute)}）`;
+
+/** 「あと3時間12分」 */
+function untilText(ms: number): string {
+  const minutes = Math.max(1, Math.ceil(ms / 60_000));
+  const h = Math.floor(minutes / 60);
+  return h > 0 ? `あと${h}時間${minutes % 60}分` : `あと${minutes}分`;
+}
 
 /**
  * 入店画面（のれんの前）。名前・色・ひとこと札を選び、18歳以上を確認してから入店する。
@@ -9,7 +29,7 @@ const hex = (color: number) => `#${color.toString(16).padStart(6, "0")}`;
  */
 export function showEntrance(
   initial: Profile,
-  guests: Promise<number | null>,
+  status: Promise<ShopStatus | null>,
   onEnter: (profile: Profile) => Promise<void>,
 ) {
   const root = document.createElement("form");
@@ -19,6 +39,12 @@ export function showEntrance(
       <h1 class="brand">ヨルノバ</h1>
       <p class="lead">仕事帰りにふらっと寄れる、<br />テキストだけの居酒屋。</p>
       <p class="guests" data-testid="guests" hidden></p>
+      <p class="hours" data-testid="hours">${HOURS_TEXT}</p>
+      <div class="closed" data-testid="closed" hidden>
+        <p class="closed-title">🌙 ただいま準備中</p>
+        <p class="closed-until"></p>
+        ${WAITLIST_URL ? `<a class="waitlist" target="_blank" rel="noopener">開店や新しいお知らせを受け取る</a>` : ""}
+      </div>
 
       <label class="field">
         <span>名前</span>
@@ -61,6 +87,15 @@ export function showEntrance(
   const enter = root.querySelector<HTMLButtonElement>(".enter")!;
   const error = root.querySelector<HTMLParagraphElement>(".error")!;
   const guestsLine = root.querySelector<HTMLParagraphElement>(".guests")!;
+  const hoursLine = root.querySelector<HTMLParagraphElement>(".hours")!;
+  const closed = root.querySelector<HTMLDivElement>(".closed")!;
+  const closedUntil = root.querySelector<HTMLParagraphElement>(".closed-until")!;
+  const waitlist = root.querySelector<HTMLAnchorElement>(".waitlist");
+  if (waitlist && WAITLIST_URL) waitlist.href = WAITLIST_URL;
+  waitlist?.addEventListener("click", () => track("waitlist_clicked", { from: "closed" }));
+
+  // 営業時間外（入店禁止が有効なとき）は、開店時刻まで入店ボタンを押せなくする
+  let opensAt: number | null = null;
 
   let color = initial.color;
   const tags = new Set<string>(initial.tags);
@@ -75,7 +110,11 @@ export function showEntrance(
       b.setAttribute("aria-pressed", String(on));
       b.disabled = !on && tags.size >= MAX_TAGS;
     });
-    enter.disabled = !adult.checked;
+    const isClosed = opensAt !== null && Date.now() < opensAt;
+    closed.hidden = !isClosed;
+    if (isClosed) closedUntil.textContent = `次の開店は ${OPEN_HOUR}:00（${untilText(opensAt! - Date.now())}）`;
+    if (!enter.dataset.busy) enter.textContent = isClosed ? `${OPEN_HOUR}:00 開店` : "のれんをくぐる";
+    enter.disabled = !adult.checked || isClosed || Boolean(enter.dataset.busy);
   };
 
   root.querySelector(".swatches")!.addEventListener("click", (e) => {
@@ -95,7 +134,8 @@ export function showEntrance(
 
   root.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!adult.checked) return;
+    if (enter.disabled) return;
+    enter.dataset.busy = "1";
     enter.disabled = true;
     enter.textContent = "入店中…";
     error.hidden = true;
@@ -107,17 +147,32 @@ export function showEntrance(
       const message = err instanceof Error ? err.message : "";
       error.textContent = message.includes("留置所")
         ? `🚨 ${message}`
-        : "お店につながりませんでした。少し待ってからもう一度どうぞ";
+        : message.includes("営業時間外")
+          ? `🌙 ${message}`
+          : "お店につながりませんでした。少し待ってからもう一度どうぞ";
       error.hidden = false;
-      enter.textContent = "のれんをくぐる";
+      delete enter.dataset.busy;
       render();
     }
   });
 
-  guests.then((n) => {
-    if (n === null) return;
-    guestsLine.textContent = n > 0 ? `🏮 いま ${n}人が飲んでる` : "🏮 いまは貸し切り。最初の一杯をどうぞ";
-    guestsLine.hidden = false;
+  status.then((s) => {
+    if (!s) return;
+    if (s.phase === "closed") track("closed_page_view", { enforced: s.enforced });
+    if (s.phase === "closed" && s.enforced) {
+      opensAt = s.nextOpeningAt;
+      const timer = window.setInterval(() => {
+        if (!root.isConnected) return window.clearInterval(timer);
+        render();
+      }, 30_000);
+    } else {
+      const n = s.guests;
+      guestsLine.textContent = n > 0 ? `🏮 いま ${n}人が飲んでる` : "🏮 いまは貸し切り。最初の一杯をどうぞ";
+      guestsLine.hidden = false;
+      if (s.phase === "last_order") hoursLine.textContent = `${HOURS_TEXT}\n🍶 まもなくラストオーダーです`;
+      else if (s.phase === "closed") hoursLine.textContent = `${HOURS_TEXT}\nいまは試験営業中のため、時間外も開けています`;
+    }
+    render();
   });
 
   render();

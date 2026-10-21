@@ -10,6 +10,7 @@ import {
   type ReactionEvent,
 } from "@yorunoba/shared";
 import Phaser from "phaser";
+import { track } from "../analytics";
 import { ASSETS } from "../assets";
 import { DPR } from "../display";
 import type { IzakayaRoom } from "../net/connection";
@@ -89,6 +90,10 @@ export class IzakayaScene extends Phaser.Scene {
       this.avatars.set(sessionId, avatar);
       // 自分の移動はタップ時に先に動かしているので、サーバーの値は他人のぶんだけ反映する
       callbacks.onChange(player, () => {
+        // 計測：自分が席に着いたとき（サーバーが認めた時点）だけ数える
+        if (isSelf && player.seat && player.seat !== avatar.seat) {
+          track("seat_taken", { seat_type: player.seat.startsWith("counter") ? "counter" : "table" });
+        }
         avatar.seat = player.seat;
         if (!isSelf) avatar.walkTo(player.x, player.y);
       });
@@ -127,9 +132,10 @@ export class IzakayaScene extends Phaser.Scene {
     const bubble = new SpeechBubble(this, e.id, e.text, (b, pointer) => {
       if (isOwn) return;
       const event = pointer.event as PointerEvent;
-      showReactionPicker(event.clientX, event.clientY, (kind) =>
-        this.room?.send(MSG.react, { bubbleId: b.bubbleId, kind }),
-      );
+      showReactionPicker(event.clientX, event.clientY, (kind) => {
+        this.room?.send(MSG.react, { bubbleId: b.bubbleId, kind });
+        track("emote_sent", { kind });
+      });
     });
     this.bubbles.set(e.id, bubble);
     bubble.once(Phaser.GameObjects.Events.DESTROY, () => this.bubbles.delete(e.id));

@@ -102,12 +102,12 @@ describe("IzakayaRoom", () => {
 
   it("reports how many guests are drinking", async () => {
     const status = async () => (await (await fetch(`http://localhost:${PORT}/api/status`)).json()) as ShopStatus;
-    expect(await status()).toEqual({ guests: 0 });
+    expect(await status()).toMatchObject({ guests: 0, enforced: false });
 
     const a = await join("A");
     const b = await join("B");
     await waitFor(() => playerCount(b) === 2);
-    expect(await status()).toEqual({ guests: 2 });
+    expect(await status()).toMatchObject({ guests: 2 });
 
     await a.leave();
     await b.leave();
@@ -292,5 +292,19 @@ describe("IzakayaRoom", () => {
       }
     }
     for (const r of rooms) await r.leave();
+  });
+
+  it("refuses entry outside opening hours only when hours are enforced", async () => {
+    process.env.SHOP_HOURS_ENFORCED = "true";
+    const { shopPhase } = await import("@yorunoba/shared");
+    if (shopPhase() === "closed") {
+      await expect(join("時間外の客")).rejects.toThrow(/営業時間外/);
+    } else {
+      const r = await join("営業中の客");
+      await r.leave();
+    }
+    delete process.env.SHOP_HOURS_ENFORCED;
+    const r = await join("いつでも入れる客"); // 既定（試験営業中）は24時間入れる
+    await r.leave();
   });
 });

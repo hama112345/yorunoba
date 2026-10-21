@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { defineRoom, defineServer, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { ROOM_IZAKAYA, type ShopStatus } from "@yorunoba/shared";
+import { ROOM_IZAKAYA, nextOpeningAt, shopPhase, type ShopStatus } from "@yorunoba/shared";
+import { hoursEnforced } from "./hours.js";
 import express from "express";
 import { IzakayaRoom } from "./rooms/IzakayaRoom.js";
 
@@ -26,7 +27,12 @@ export function createServer() {
       app.get("/api/status", async (_req, res) => {
         res.set("Access-Control-Allow-Origin", "*"); // 開発中は画面(5173)とサーバー(2567)のポートが違うため
         const rooms = await matchMaker.query({ name: ROOM_IZAKAYA });
-        const status: ShopStatus = { guests: rooms.reduce((sum, room) => sum + room.clients, 0) };
+        const status: ShopStatus = {
+          guests: rooms.reduce((sum, room) => sum + room.clients, 0),
+          phase: shopPhase(),
+          enforced: hoursEnforced(),
+          nextOpeningAt: nextOpeningAt(),
+        };
         res.json(status);
       });
 

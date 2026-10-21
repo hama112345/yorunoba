@@ -19,6 +19,8 @@ import {
   sanitizeChat,
   sanitizeName,
   sanitizeTags,
+  shopPhase,
+  type AnnounceEvent,
   type ChatEvent,
   type JailedEvent,
   type JoinOptions,
@@ -28,6 +30,7 @@ import {
 } from "@yorunoba/shared";
 import { RateLimiter } from "../chat/rateLimit.js";
 import { checkChat } from "../chat/rules.js";
+import { hoursAnnouncement, hoursEnforced } from "../hours.js";
 import { ReportBook, jailList } from "../moderation/jail.js";
 import { notifyStaff } from "../moderation/notify.js";
 
@@ -108,9 +111,13 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   private strikes = new Map<string, number>();
   private recentChats: RecentChat[] = [];
   private lastBubbleId = 0;
+  private phase = shopPhase();
 
   /** 留置所にいる人は入れない。店主の合言葉もここで確かめる */
   onAuth(_client: Client, options: JoinOptions = {}, context: AuthContext): GuestAuth {
+    if (hoursEnforced() && shopPhase() === "closed") {
+      throw new ServerError(403, "営業時間外です。次の開店は21:00（日本時間）です");
+    }
     const auth = { deviceId: sanitizeDeviceId(options.deviceId), ip: context.ip };
     const releaseAt = jailList.releaseAt(jailKeys(auth));
     if (releaseAt) {
@@ -121,6 +128,9 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   }
 
   onCreate() {
+    // 営業の節目（開店・ラストオーダー・閉店）を店内に知らせる
+    this.clock.setInterval(() => this.checkHours(), 20_000);
+
     this.onMessage(MSG.move, (client: Client, payload: Partial<MovePayload>) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || typeof payload?.x !== "number" || typeof payload?.y !== "number") return;
@@ -237,6 +247,17 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   private recentLinesOf(sessionId: string) {
     const lines = this.recentChats.filter((c) => c.from === sessionId).slice(-5);
     return lines.length ? lines.map((c) => `> ${c.text}`).join("\n") : "（直近の発言なし）";
+  }
+
+  private checkHours(now = Date.now()) {
+    const next = shopPhase(now);
+    const text = hoursAnnouncement(this.phase, next, hoursEnforced());
+    this.phase = next;
+    if (!text) return;
+    const event: AnnounceEvent = { text };
+    this.broadcast(EVT.announce, event);
+    // 閉店時間を守るときは、お知らせのあと2分で店を閉める
+    if (next === "closed" && hoursEnforced()) this.clock.setTimeout(() => this.disconnect(), 2 * 60_000);
   }
 
   private isSeatTaken(seatId: string, except: string) {

@@ -68,7 +68,7 @@ function deviceId(): string | undefined {
  * 店主の合言葉。URLの末尾に #staff=合言葉 を付けて開くと、このタブの間だけ覚える。
  * （# 以降はサーバーのアクセス記録に残らない。URLからはすぐ消す）
  */
-function staffToken(): string | undefined {
+export function staffToken(): string | undefined {
   try {
     const match = location.hash.match(/staff=([^&]+)/);
     if (match) {

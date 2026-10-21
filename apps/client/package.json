@@ -10,9 +10,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@yorunoba/shared": "*",
     "@colyseus/sdk": "0.18.5",
-    "phaser": "3.90.0"
+    "@yorunoba/shared": "*",
+    "phaser": "3.90.0",
+    "posthog-js": "1.438.1"
   },
   "devDependencies": {
     "vite": "7.3.7"

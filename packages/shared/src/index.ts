@@ -41,7 +41,13 @@ export const EVT = {
   notice: "notice",
   /** 留置所に送られた本人への知らせ（このあと店から出される） */
   jailed: "jailed",
+  /** 店からのお知らせ（開店・ラストオーダー・閉店） */
+  announce: "announce",
 } as const;
+
+export interface AnnounceEvent {
+  text: string;
+}
 
 /** 留置所（入店禁止）の時間 */
 export const JAIL_MS = 10 * 60_000;
@@ -108,9 +114,14 @@ export interface JoinOptions {
   staffToken?: string;
 }
 
-/** 店の様子（入店画面の「いま○人」用） */
+/** 店の様子（入店画面の「いま○人」と営業時間の表示用） */
 export interface ShopStatus {
   guests: number;
+  phase: "closed" | "open" | "last_order";
+  /** 時間外に入店できなくしているか（一般公開の日から true にする） */
+  enforced: boolean;
+  /** 次の開店時刻（UNIXミリ秒） */
+  nextOpeningAt: number;
 }
 
 export interface MovePayload {
@@ -167,3 +178,4 @@ export function isValidColor(color: unknown): color is number {
 
 export * from "./layout";
 export { IzakayaState, Player } from "./schema";
+export * from "./hours";

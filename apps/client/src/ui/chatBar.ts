@@ -7,6 +7,8 @@ const LOG_LIFETIME_MS = 60_000;
 export interface ChatBar {
   addLine(name: string, text: string, isSelf: boolean): void;
   notice(text: string): void;
+  /** 店からのお知らせ（開店・ラストオーダーなど）。普通の発言と見分けがつくように出す */
+  announce(text: string): void;
 }
 
 /**
@@ -63,6 +65,14 @@ export function showChatBar(onSend: (text: string) => void): ChatBar {
       const who = document.createElement("b");
       who.textContent = name;
       li.append(who, document.createTextNode(` ${text}`)); // textContentで入れる（HTMLとして解釈させない）
+      log.append(li);
+      while (log.children.length > LOG_LINES) log.firstElementChild?.remove();
+      setTimeout(() => li.remove(), LOG_LIFETIME_MS);
+    },
+    announce(text) {
+      const li = document.createElement("li");
+      li.className = "announce";
+      li.textContent = `📢 ${text}`;
       log.append(li);
       while (log.children.length > LOG_LINES) log.firstElementChild?.remove();
       setTimeout(() => li.remove(), LOG_LIFETIME_MS);

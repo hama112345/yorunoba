@@ -265,6 +265,91 @@
         cursor: pointer;
       }
       .reaction-picker button:hover { background: var(--accent); color: #1a1220; }
+
+      /* HUDの下：常連パス（準備中）と友だちを誘う */
+      #actions {
+        position: fixed;
+        top: calc(max(12px, env(safe-area-inset-top)) + 40px);
+        right: 12px;
+        display: flex;
+        gap: 6px;
+        z-index: 4;
+      }
+      #actions[hidden] { display: none; }
+      #actions .action { cursor: pointer; color: var(--text); font-size: 13px; padding: 5px 10px; }
+      #actions #pass { border-color: rgba(255, 210, 122, 0.7); color: #ffe3a3; }
+
+      /* 会話欄の「店からのお知らせ」 */
+      #chat .log li.announce { background: rgba(142, 42, 32, 0.85); color: #fff4e6; }
+
+      /* 入店画面の営業時間・準備中 */
+      #entrance .hours { margin: 4px 0 0; text-align: center; font-size: 12px; opacity: 0.75; white-space: pre-line; }
+      #entrance .closed[hidden] { display: none; }
+      #entrance .closed {
+        margin: 12px 0 0;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.06);
+        text-align: center;
+      }
+      #entrance .closed p { margin: 0; }
+      #entrance .closed-title { font-size: 17px; font-weight: 700; color: #ffd27a; }
+      #entrance .closed-until { font-size: 14px; margin-top: 4px !important; }
+      #entrance .closed .waitlist, .modal .waitlist { display: inline-block; margin-top: 8px; color: var(--accent); }
+
+      /* 画面中央のお知らせ窓（常連パスなど） */
+      .modal {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        background: rgba(10, 6, 14, 0.6);
+        z-index: 25;
+      }
+      .modal .card {
+        width: min(380px, 100%);
+        max-height: 100%;
+        overflow-y: auto;
+        background: var(--panel);
+        border: 1px solid rgba(255, 210, 122, 0.6);
+        border-radius: 16px;
+        padding: 18px 18px 14px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      }
+      .modal h2 { margin: 0; font-size: 20px; }
+      .modal h2 small { font-size: 13px; opacity: 0.75; font-weight: 400; }
+      .modal .price { margin: 6px 0 10px; color: #ffe3a3; }
+      .modal .price b { font-size: 22px; }
+      .modal .perks { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
+      .modal .ask { margin: 14px 0 6px; font-size: 14px; }
+      .modal .answers { display: flex; flex-wrap: wrap; gap: 6px; }
+      .modal .answers button {
+        font-size: 14px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        border: 1px solid rgba(232, 163, 61, 0.5);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .modal .answers button[aria-pressed="true"] { background: var(--accent); color: #1a1220; border-color: var(--accent); }
+      .modal .answers button:disabled:not([aria-pressed="true"]) { opacity: 0.4; }
+      .modal .thanks[hidden] { display: none; }
+      .modal .thanks { margin: 8px 0 0; font-size: 14px; color: #ffd27a; }
+      .modal .later { margin: 10px 0 0; font-size: 13px; opacity: 0.8; }
+      .modal .close {
+        display: block;
+        width: 100%;
+        margin-top: 14px;
+        padding: 10px;
+        font-size: 15px;
+        border-radius: 10px;
+        border: 1px solid rgba(246, 234, 219, 0.3);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -275,6 +360,10 @@
         <button type="button" class="pill sound" id="sound" hidden aria-label="店内の音">🔊</button>
         <span class="pill" id="status" data-state="waiting">のれんの前</span>
       </span>
+    </div>
+    <div id="actions" hidden>
+      <button type="button" class="pill action" id="pass">🎫 常連パス</button>
+      <button type="button" class="pill action" id="invite">📨 誘う</button>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
