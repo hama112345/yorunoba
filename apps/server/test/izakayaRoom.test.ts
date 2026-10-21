@@ -7,6 +7,7 @@ import {
   ROOM_IZAKAYA,
   SEATS,
   type ChatEvent,
+  type JailedEvent,
   type JoinOptions,
   type NoticeEvent,
   type ReactionEvent,
@@ -30,9 +31,13 @@ async function waitFor(check: () => boolean, timeoutMs = 3000) {
 
 type IzakayaRoom = Room<any, IzakayaState>;
 
-function join(name: string, tags?: unknown): Promise<IzakayaRoom> {
-  return sdk.joinOrCreate(ROOM_IZAKAYA, { name, tags } as JoinOptions, IzakayaState);
+function join(name: string, tags?: unknown, extra: JoinOptions = {}): Promise<IzakayaRoom> {
+  return sdk.joinOrCreate(ROOM_IZAKAYA, { name, tags, ...extra } as JoinOptions, IzakayaState);
 }
+
+let deviceSeq = 0;
+/** テストごとに別の端末IDで入店する（留置所の記録が他のテストに影響しないように） */
+const device = () => `test-device-${Date.now()}-${++deviceSeq}`;
 
 function playerCount(room: IzakayaRoom) {
   return room.state?.players?.size ?? 0;
@@ -185,5 +190,107 @@ describe("IzakayaRoom", () => {
 
     await alice.leave();
     await bob.leave();
+  });
+
+  it("keeps NG words and contact info off the floor, and jails repeat offenders", async () => {
+    const offenderDevice = device();
+    const troll = await join("荒らし", undefined, { deviceId: offenderDevice });
+    const bob = await join("ボブ", undefined, { deviceId: device() });
+    await waitFor(() => playerCount(bob) === 2);
+
+    const heard: ChatEvent[] = [];
+    bob.onMessage(EVT.chat, (e: ChatEvent) => heard.push(e));
+    troll.onMessage(EVT.chat, () => {});
+    const notices: NoticeEvent[] = [];
+    troll.onMessage(EVT.notice, (e: NoticeEvent) => notices.push(e));
+    const jailed: JailedEvent[] = [];
+    troll.onMessage(EVT.jailed, (e: JailedEvent) => jailed.push(e));
+
+    troll.send(MSG.chat, { text: "LINE ID: troll1234 で話そう" });
+    await waitFor(() => notices.length === 1);
+    expect(notices[0].text).toContain("連絡先");
+    expect(heard).toHaveLength(0);
+
+    await new Promise((r) => setTimeout(r, 1100)); // 連投制限に当たらないよう間を空ける
+    troll.send(MSG.chat, { text: "死ね" });
+    await new Promise((r) => setTimeout(r, 1100));
+    troll.send(MSG.chat, { text: "パパ活しよ" });
+    await waitFor(() => jailed.length === 1);
+    expect(jailed[0].until).toBeGreaterThan(Date.now());
+    await waitFor(() => playerCount(bob) === 1);
+    expect(heard).toHaveLength(0);
+
+    // 同じ端末からは入り直せない
+    await expect(join("荒らし", undefined, { deviceId: offenderDevice })).rejects.toThrow(/留置所/);
+    await bob.leave();
+  });
+
+  it("sends a guest to jail after reports from two different people", async () => {
+    const targetDevice = device();
+    const target = await join("迷惑な人", undefined, { deviceId: targetDevice });
+    const a = await join("A", undefined, { deviceId: device() });
+    const b = await join("B", undefined, { deviceId: device() });
+    await waitFor(() => playerCount(a) === 3);
+    const jailed: JailedEvent[] = [];
+    target.onMessage(EVT.jailed, (e: JailedEvent) => jailed.push(e));
+    const notices: NoticeEvent[] = [];
+    a.onMessage(EVT.notice, (e: NoticeEvent) => notices.push(e));
+    b.onMessage(EVT.notice, () => {});
+
+    a.send(MSG.report, { target: target.sessionId });
+    a.send(MSG.report, { target: target.sessionId }); // 同じ人の2回目は数えない
+    await waitFor(() => notices.length >= 1);
+    expect(jailed).toHaveLength(0);
+    a.send(MSG.report, { target: a.sessionId }); // 自分は通報できない
+
+    b.send(MSG.report, { target: target.sessionId });
+    await waitFor(() => jailed.length === 1);
+    expect(jailed[0].reason).toContain("通報");
+    await waitFor(() => playerCount(a) === 2);
+    await expect(join("迷惑な人", undefined, { deviceId: targetDevice })).rejects.toThrow(/留置所/);
+
+    await a.leave();
+    await b.leave();
+  });
+
+  it("lets the owner (staff token) send someone to jail at once, and staff cannot be reported", async () => {
+    process.env.ADMIN_TOKEN = "test-admin-token-123";
+    const owner = await join("店主", undefined, { deviceId: device(), staffToken: "test-admin-token-123" });
+    const fake = await join("偽店主", undefined, { deviceId: device(), staffToken: "wrong-token-xxxx" });
+    const guest = await join("客", undefined, { deviceId: device() });
+    await waitFor(() => playerCount(owner) === 3);
+    expect(playerOf(guest, owner.sessionId)?.staff).toBe(true);
+    expect(playerOf(guest, fake.sessionId)?.staff).toBe(false);
+
+    const jailed: JailedEvent[] = [];
+    guest.onMessage(EVT.jailed, (e: JailedEvent) => jailed.push(e));
+    fake.onMessage(EVT.jailed, (e: JailedEvent) => jailed.push(e));
+    owner.onMessage(EVT.notice, () => {});
+    guest.onMessage(EVT.notice, () => {});
+
+    guest.send(MSG.report, { target: owner.sessionId }); // 店主は通報されない
+    owner.send(MSG.report, { target: fake.sessionId }); // 店主の判断で即留置所
+    await waitFor(() => jailed.length === 1);
+    expect(jailed[0].reason).toBe("店主の判断");
+    await waitFor(() => playerCount(guest) === 2);
+    expect(playerOf(guest, owner.sessionId)).toBeDefined();
+
+    delete process.env.ADMIN_TOKEN;
+    await owner.leave();
+    await guest.leave();
+  });
+
+  it("spawns new guests apart from each other near the entrance", async () => {
+    const rooms = [];
+    for (let i = 0; i < 5; i++) rooms.push(await join(`客${i}`));
+    const last = rooms[rooms.length - 1];
+    await waitFor(() => playerCount(last) === 5);
+    const ps = [...last.state.players.values()];
+    for (let i = 0; i < ps.length; i++) {
+      for (let j = i + 1; j < ps.length; j++) {
+        expect(Math.hypot(ps[i].x - ps[j].x, ps[i].y - ps[j].y)).toBeGreaterThanOrEqual(40);
+      }
+    }
+    for (const r of rooms) await r.leave();
   });
 });

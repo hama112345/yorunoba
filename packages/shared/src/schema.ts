@@ -12,6 +12,8 @@ export const Player = schema(
     tags: t.string().default(""),
     /** 座っている席のID（layout.ts の SEATS）。立っていれば "" */
     seat: t.string().default(""),
+    /** 店主（店員）なら true。名札に「店主」と出る */
+    staff: t.boolean().default(false),
   },
   "Player",
 );

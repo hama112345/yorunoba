@@ -1,0 +1,6 @@
+body { margin: 0; background: #1a1220; color: #f6eadb; font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif; line-height: 1.8; }
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { color: #e8a33d; font-size: 24px; }
+h2 { font-size: 17px; margin-top: 28px; border-left: 4px solid #e8a33d; padding-left: 8px; }
+a { color: #e8a33d; }
+.note { font-size: 13px; opacity: 0.75; }

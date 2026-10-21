@@ -16,6 +16,7 @@ import { Avatar } from "../objects/Avatar";
 import { drawIzakaya } from "../objects/izakayaDecor";
 import { SpeechBubble } from "../objects/SpeechBubble";
 import { showGuests } from "../ui/hud";
+import { closeGuestCard } from "../ui/guestCard";
 import { closeReactionPicker, showReactionPicker } from "../ui/reactionPicker";
 
 /** これより小さく映る画面（スマホ縦など）では、店全体ではなく自分の周りを大きく映す */
@@ -75,8 +76,9 @@ export class IzakayaScene extends Phaser.Scene {
     callbacks.onAdd("players", (player, sessionId) => {
       const isSelf = sessionId === room.sessionId;
       const tags = player.tags ? player.tags.split(",") : [];
-      const avatar = new Avatar(this, player.x, player.y, player.name, player.color, tags, isSelf);
+      const avatar = new Avatar(this, player.x, player.y, player.name, player.color, tags, isSelf, player.staff);
       avatar.seat = player.seat;
+      avatar.on("tap", () => this.game.events.emit("guest-tap", sessionId));
       this.avatars.set(sessionId, avatar);
       // 自分の移動はタップ時に先に動かしているので、サーバーの値は他人のぶんだけ反映する
       callbacks.onChange(player, () => {
@@ -98,10 +100,11 @@ export class IzakayaScene extends Phaser.Scene {
     this.addSeatSpots(room);
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      // 吹き出しや席を押したときは歩かない（それぞれの処理が先に動いている。
-      // ここで反応の選択肢を閉じると、吹き出しが開いたばかりの選択肢まで閉じてしまう）
+      // 吹き出し・席・ほかの客を押したときは歩かない（それぞれの処理が先に動いている。
+      // ここで選択肢や名札カードを閉じると、開いたばかりのものまで閉じてしまう）
       if (over.length > 0) return;
       closeReactionPicker();
+      closeGuestCard();
       const { x, y } = clampToFloor(pointer.worldX, pointer.worldY);
       this.avatars.get(room.sessionId)?.walkTo(x, y);
       room.send(MSG.move, { x, y });

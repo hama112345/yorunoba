@@ -46,6 +46,9 @@ export function showEntrance(
         <input type="checkbox" name="adult" />
         <span>18歳以上です</span>
       </label>
+      <p class="terms">
+        入店すると<a href="/terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="/privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意したものとみなします。発言は保存されません。
+      </p>
 
       <button type="submit" class="enter" disabled>のれんをくぐる</button>
       <p class="error" role="alert" hidden></p>
@@ -101,7 +104,10 @@ export function showEntrance(
       root.remove();
     } catch (err) {
       console.error(err);
-      error.textContent = "お店につながりませんでした。少し待ってからもう一度どうぞ";
+      const message = err instanceof Error ? err.message : "";
+      error.textContent = message.includes("留置所")
+        ? `🚨 ${message}`
+        : "お店につながりませんでした。少し待ってからもう一度どうぞ";
       error.hidden = false;
       enter.textContent = "のれんをくぐる";
       render();

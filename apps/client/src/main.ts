@@ -1,10 +1,12 @@
-import { EVT, MSG, type ChatEvent, type NoticeEvent } from "@yorunoba/shared";
+import { EVT, MSG, type ChatEvent, type JailedEvent, type NoticeEvent } from "@yorunoba/shared";
 import Phaser from "phaser";
 import { fetchStatus, joinIzakaya, loadProfile, saveProfile } from "./net/connection";
 import { BootScene } from "./scenes/BootScene";
 import { IzakayaScene } from "./scenes/IzakayaScene";
 import { showChatBar } from "./ui/chatBar";
 import { showEntrance } from "./ui/entrance";
+import { showGuestCard } from "./ui/guestCard";
+import { showJail } from "./ui/jail";
 import { showError, showWaiting } from "./ui/hud";
 
 declare global {
@@ -53,7 +55,27 @@ showEntrance(
     });
     room.onMessage(EVT.notice, (e: NoticeEvent) => chat.notice(e.text));
 
-    room.onLeave(() => showError("お店から出ました。再読み込みで再入店できます"));
+    // ほかの客をタップ → 名札カード（困ったときは通報）
+    game.events.on("guest-tap", (sessionId: string) => {
+      const guest = room.state.players.get(sessionId);
+      if (!guest) return;
+      const viewerIsStaff = room.state.players.get(room.sessionId)?.staff ?? false;
+      showGuestCard(
+        { name: guest.name, tags: guest.tags ? guest.tags.split(",") : [], staff: guest.staff },
+        viewerIsStaff,
+        () => room.send(MSG.report, { target: sessionId }),
+      );
+    });
+
+    let jailed = false;
+    room.onMessage(EVT.jailed, (e: JailedEvent) => {
+      jailed = true;
+      showJail(e.until, e.reason);
+    });
+
+    room.onLeave(() => {
+      if (!jailed) showError("お店から出ました。再読み込みで再入店できます");
+    });
     window.__yorunoba = {
       sessionId: room.sessionId,
       avatars: () => scene.snapshot(),

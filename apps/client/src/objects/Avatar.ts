@@ -23,6 +23,7 @@ export class Avatar extends Phaser.GameObjects.Container {
     color: number,
     tags: string[],
     isSelf: boolean,
+    staff = false,
   ) {
     super(scene, x, y);
     this.guestName = name;
@@ -40,10 +41,10 @@ export class Avatar extends Phaser.GameObjects.Container {
       scene.add.circle(10, 3, 3.2, 0xff8fa3, 0.55),
     ];
     const label = scene.add
-      .text(0, -32, name, {
+      .text(0, -32, staff ? `🏮${name}` : name, {
         fontFamily: "sans-serif",
         fontSize: "13px",
-        color: isSelf ? "#ffd27a" : "#f6eadb",
+        color: staff ? "#ff9a7a" : isSelf ? "#ffd27a" : "#f6eadb",
         stroke: "#1a1220",
         strokeThickness: 4,
       })
@@ -65,6 +66,12 @@ export class Avatar extends Phaser.GameObjects.Container {
     }
     if (isSelf) {
       this.add(scene.add.triangle(0, -50, 0, 0, 10, 0, 5, 7, 0xffd27a).setOrigin(0.5));
+    }
+    // 体をタップすると名札カード（通報など）を出せるように、見えない当たり判定を置く
+    if (!isSelf) {
+      const hit = scene.add.zone(0, 0, 40, 46).setInteractive({ useHandCursor: true });
+      hit.on("pointerdown", () => this.emit("tap"));
+      this.add(hit);
     }
     this.setDepth(y);
     scene.add.existing(this);

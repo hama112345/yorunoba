@@ -28,6 +28,7 @@ export const MSG = {
   chat: "chat",
   sit: "sit",
   react: "react",
+  report: "report",
 } as const;
 
 /** サーバー→クライアントのお知らせ（状態として残さず、その場で流すもの） */
@@ -38,7 +39,23 @@ export const EVT = {
   reaction: "reaction",
   /** 本人だけに出す注意（連投しすぎ など） */
   notice: "notice",
+  /** 留置所に送られた本人への知らせ（このあと店から出される） */
+  jailed: "jailed",
 } as const;
+
+/** 留置所（入店禁止）の時間 */
+export const JAIL_MS = 10 * 60_000;
+/** この時間内に、別々の人からこの人数の通報があれば留置所へ */
+export const REPORT_WINDOW_MS = 10 * 60_000;
+export const REPORTS_TO_JAIL = 2;
+/** NGワード・連絡先の書き込みをこの回数くり返したら留置所へ */
+export const RULE_STRIKES_TO_JAIL = 3;
+
+export interface JailedEvent {
+  /** 店に戻れる時刻（UNIXミリ秒） */
+  until: number;
+  reason: string;
+}
 
 /** 1回の発言の最大文字数（吹き出しに収まる長さ） */
 export const CHAT_MAX_LENGTH = 80;
@@ -85,6 +102,10 @@ export interface JoinOptions {
   name?: string;
   color?: number;
   tags?: string[];
+  /** 端末ごとのランダムなID（留置所の判定に使う。個人は特定しない） */
+  deviceId?: string;
+  /** 店主の合言葉（Renderの環境変数 ADMIN_TOKEN と一致すれば店主になる） */
+  staffToken?: string;
 }
 
 /** 店の様子（入店画面の「いま○人」用） */
