@@ -12,12 +12,17 @@
 - 右上に店内の人数が出る。
 
 ## 公開する（Render）
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hama112345/yorunoba)
+GitHubのリポジトリが非公開でも公開でも、この手順で公開できる。遊ぶ人は発行されたURLで入店するので、GitHubを見せる必要はない。
 
-1. 上のボタンを押し、GitHubアカウントでRenderにログインする。
-2. `render.yaml` の内容（サービス名 `yorunoba`、無料プラン、`main` ブランチ）が表示されるので「Apply」を押す。
-3. 数分でビルドが終わると、`https://yorunoba.onrender.com` のようなURLが発行される。スマホでも開いて確認する。
-4. 以後は、`main` にpushするたびに自動で更新される。
+1. [Render](https://dashboard.render.com) にGitHubアカウントでログインする。
+2. 「New +」→「Blueprint」を選ぶ。
+3. リポジトリの一覧から `yorunoba` を選ぶ。
+   - 一覧に出ないときは「Configure GitHub」から、RenderにこのリポジトリへのアクセスをGitHub側で許可する（非公開リポジトリのとき）。
+4. `render.yaml` の内容（サービス名 `yorunoba`、無料プラン、`main` ブランチ）が表示されるので「Apply」を押す。
+5. 数分でビルドが終わると、`https://yorunoba.onrender.com` のようなURLが発行される。スマホでも開いて確認する。
+6. 以後は、`main` にpushするたびに自動で更新される。
+
+> 近道（リポジトリが公開のときだけ使える）：[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hama112345/yorunoba)
 
 > 無料プランは15分アクセスがないとサーバーが眠り、次の入店に1分ほどかかる。一般公開（D10）の前に、Renderの画面で Starter（月7ドル）に切り替える。
 

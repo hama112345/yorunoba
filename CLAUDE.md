@@ -20,6 +20,7 @@
 - 開発は `claude/...` ブランチで行い、pushしてGitHub ActionsのCIが**緑になってから**、同じコミットを `main` に反映する（fast-forward。オーナー了承済み）。
 - `main` へのpushでRenderが自動デプロイする（`render.yaml`）。`main` = 公開中の店なので、赤いコミットは載せない。
 - 反映後は、公開URLに対して `E2E_BASE_URL=… npm run test:e2e` で確認する。
+- CIの結果はGitHub連携ツール（`actions_list` / `get_job_logs`）で確認する。リポジトリは非公開の場合があり、認証なしの公開APIでは読めない。
 
 ## 構成
 npm workspaces のmonorepo。
