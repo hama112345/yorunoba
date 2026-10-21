@@ -56,6 +56,8 @@ GitHubのリポジトリが非公開でも公開でも、この手順で公開�
 | `AI_STAFF_DAILY_LIMIT` | 数字（既定 3000） | AI店員が1日に呼べる回数の上限（費用の上限） |
 | `JAIL_BY_IP` | `true` | 留置所の判定に端末IDに加えてIPも使う（携帯回線の巻き込みに注意） |
 
+SNSで共有されたときの画像（`apps/client/public/og.png`）は、実際の店の画面から作っている。絵を差し替えたら、`npm run build && npm start` を動かした状態で `node scripts/og-image.mjs` を実行して作り直す。公開URLが変わったら `apps/client/index.html` の `og:url` と `og:image` も直す。
+
 PostHogのキーの取り方：[PostHog](https://posthog.com) に登録 → プロジェクトを作る → 「Project settings」の「Project API key」をコピーする。
 
 ## 手元で動かす（開発者・AI向け）

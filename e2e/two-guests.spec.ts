@@ -49,6 +49,24 @@ test("2人の客が入店画面から入り、ひとこと札とお互いの移�
   await bob.screenshot({ path: testInfo.outputPath("bob-view.png") });
   await alice.screenshot({ path: testInfo.outputPath("alice-view.png") });
 
+  if (testInfo.project.name === "mobile") {
+    // スマホ縦：ボブが店の右端へ歩く → 画面の外になったアリスは、画面の端の札で分かる
+    const marker = bob.locator(`.edge-marker[data-id="${aliceId}"]`);
+    for (let i = 0; i < 4 && !(await marker.isVisible()); i++) {
+      const bobId = await sessionId(bob);
+      const me = (await avatars(bob)).find((a) => a.id === bobId)!;
+      const pos = await bob.evaluate(({ x, y }) => window.__yorunoba!.worldToScreen(x, y), me);
+      await bob.mouse.click(bob.viewportSize()!.width - 20, pos.y);
+      await bob.waitForTimeout(1500);
+    }
+    await expect(marker).toBeVisible();
+    await expect(marker).toContainText("アリス");
+    await bob.screenshot({ path: testInfo.outputPath("bob-edge-marker.png") });
+    // 札を押すと、アリスのほうへ歩いて画面に入る（札は消える）
+    await marker.click();
+    await expect(marker).toBeHidden({ timeout: 15_000 });
+  }
+
   // アリスが帰るとボブの店内人数が減る
   await ctxA.close();
   await expect(bob.locator("#status")).toHaveText("いま店内 1人");

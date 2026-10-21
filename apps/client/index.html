@@ -6,6 +6,17 @@
     <meta name="theme-color" content="#1a1220" />
     <title>ヨルノバ — 夜の居酒屋で、ちょっと話そう</title>
     <meta name="description" content="仕事帰りにふらっと寄れる、テキストだけの居酒屋メタバース。" />
+    <!-- SNSで共有されたときの見え方（画像は scripts/og-image.mjs で店の画面から作る。URLは公開中の店） -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ヨルノバ" />
+    <meta property="og:title" content="ヨルノバ — 夜の居酒屋で、ちょっと話そう" />
+    <meta property="og:description" content="仕事帰りにふらっと寄れる、テキストだけの居酒屋。登録なし・ブラウザですぐ入れます。毎晩21時開店。" />
+    <meta property="og:url" content="https://yorunoba.onrender.com/" />
+    <meta property="og:image" content="https://yorunoba.onrender.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary_large_image" />
     <style>
       :root {
         --bg: #1a1220;
@@ -278,6 +289,21 @@
       #actions[hidden] { display: none; }
       #actions .action { cursor: pointer; color: var(--text); font-size: 13px; padding: 5px 10px; }
       #actions #pass { border-color: rgba(255, 210, 122, 0.7); color: #ffe3a3; }
+
+      /* 画面の外にいる客の札（押すとその人のほうへ歩く） */
+      .edge-marker {
+        position: fixed;
+        transform: translate(-50%, -50%);
+        font-size: 12px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 210, 122, 0.55);
+        background: rgba(20, 14, 26, 0.78);
+        color: #ffe3a3;
+        white-space: nowrap;
+        cursor: pointer;
+        z-index: 3;
+      }
 
       /* 会話欄の「店からのお知らせ」 */
       #chat .log li.announce { background: rgba(142, 42, 32, 0.85); color: #fff4e6; }

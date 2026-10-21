@@ -20,12 +20,17 @@ import { drawIzakaya, lanternPositions } from "../objects/izakayaDecor";
 import { SpeechBubble } from "../objects/SpeechBubble";
 import { showGuests } from "../ui/hud";
 import { closeGuestCard } from "../ui/guestCard";
+import { renderEdgeMarkers, type EdgeMarker } from "../ui/edgeMarkers";
 import { closeReactionPicker, showReactionPicker } from "../ui/reactionPicker";
 
 /** これより小さく映る画面（スマホ縦など）では、店全体ではなく自分の周りを大きく映す */
 const READABLE_ZOOM = 0.8;
+/** スマホ縦で追いかけるときの最大の拡大率（キャラが大きくなりすぎないように） */
+const MAX_FOLLOW_ZOOM = 1;
 /** 画面下の会話欄のぶん、店全体を映すときは少し上に寄せる（px） */
 const CHAT_BAR_SPACE = 120;
+/** 画面上のHUD（店名・人数・常連パス・誘う）の高さ（px）。画面外の客の札をこれより下に出す */
+const HUD_SPACE = 96;
 /** 店の明るさ：1人だと少し落ち着いた灯り、10人以上で一番明るい（賑わいが目で分かるように） */
 const DIM_TINT = { r: 0xc4, g: 0xb2, b: 0xb0 };
 const FULL_GUESTS = 10;
@@ -120,11 +125,58 @@ export class IzakayaScene extends Phaser.Scene {
       if (over.length > 0) return;
       closeReactionPicker();
       closeGuestCard();
-      const { x, y } = clampToFloor(pointer.worldX, pointer.worldY);
-      this.avatars.get(room.sessionId)?.walkTo(x, y);
-      room.send(MSG.move, { x, y });
-      this.showTapMarker(x, y);
+      this.walkSelfTo(pointer.worldX, pointer.worldY);
     });
+
+    // 画面の外にいる客の札（4回/秒で十分。毎コマ動かすと重い）
+    this.time.addEvent({ delay: 250, loop: true, callback: () => this.updateEdgeMarkers() });
+  }
+
+  /** 自分をそこへ歩かせる（サーバーにも伝える） */
+  private walkSelfTo(worldX: number, worldY: number) {
+    if (!this.room) return;
+    const { x, y } = clampToFloor(worldX, worldY);
+    this.avatars.get(this.room.sessionId)?.walkTo(x, y);
+    this.room.send(MSG.move, { x, y });
+    this.showTapMarker(x, y);
+  }
+
+  /** 画面の外にいる客を、画面の端の札で知らせる。札を押すとその人の近くへ歩く */
+  private updateEdgeMarkers() {
+    const room = this.room;
+    if (!room) return;
+    const self = this.avatars.get(room.sessionId);
+    const width = this.scale.gameSize.width / DPR;
+    const height = this.scale.gameSize.height / DPR;
+    const area = { left: 8, right: width - 8, top: HUD_SPACE, bottom: height - CHAT_BAR_SPACE - 8 };
+    const markers: EdgeMarker[] = [];
+    for (const [id, a] of this.avatars) {
+      if (id === room.sessionId) continue;
+      const p = this.worldToScreen(a.x, a.y - 20);
+      const inside = p.x >= area.left && p.x <= area.right && p.y >= area.top && p.y <= area.bottom;
+      if (inside) continue;
+      // 札は画面の内側（端から少し内）に置く。左右にはみ出しているなら左右の札にする
+      const margin = 48;
+      const x = Math.min(Math.max(p.x, area.left + margin), area.right - margin);
+      const y = Math.min(Math.max(p.y, area.top + 16), area.bottom - 16);
+      const side = p.x < area.left ? "left" : p.x > area.right ? "right" : p.y < area.top ? "up" : "down";
+      markers.push({ id, name: a.guestName, x, y, side });
+    }
+    // 近い人から最大8人まで
+    if (self) markers.sort((m1, m2) => this.distanceTo(self, m1.id) - this.distanceTo(self, m2.id));
+    renderEdgeMarkers(markers.slice(0, 8), (id) => {
+      const a = this.avatars.get(id);
+      const me = this.avatars.get(room.sessionId);
+      if (!a || !me) return;
+      // 相手の真上ではなく、少し手前（自分の側）まで歩く
+      const d = Math.max(1, Math.hypot(a.x - me.x, a.y - me.y));
+      this.walkSelfTo(a.x - ((a.x - me.x) / d) * 50, a.y - ((a.y - me.y) / d) * 50);
+    });
+  }
+
+  private distanceTo(from: Avatar, id: string) {
+    const a = this.avatars.get(id);
+    return a ? Math.hypot(a.x - from.x, a.y - from.y) : Infinity;
   }
 
   /** 誰かの発言を頭上の吹き出しにする。自分以外の吹き出しはタップで反応できる */
@@ -236,9 +288,18 @@ export class IzakayaScene extends Phaser.Scene {
       return;
     }
 
-    // 追いかけるときは、店の外（何もない所）を映さないよう境界を付ける
-    cam.setBounds(0, 0, FLOOR.width, FLOOR.height);
-    cam.setZoom(Math.min(READABLE_ZOOM, height / FLOOR.height) * DPR);
+    // 追いかけるとき：会話欄の上の高さに店がちょうど収まるくらいまで拡大する（スマホ縦で下が空かないように）
+    const zoom = Math.min(MAX_FOLLOW_ZOOM, Math.max(READABLE_ZOOM, (height - bottom) / FLOOR.height));
+    const viewW = width / zoom;
+    const viewH = height / zoom;
+    // 店の外（何もない所）を映しすぎないよう境界を付ける。下は会話欄に隠れるぶんだけ広げ、入口が隠れないようにする。
+    // 画面のほうが店より広いときは、店が端に寄らず真ん中に来るよう境界を広げる
+    let [bx, bw]: number[] = [0, FLOOR.width];
+    if (viewW > bw) [bx, bw] = [(FLOOR.width - viewW) / 2, viewW];
+    let [by, bh]: number[] = [0, FLOOR.height + bottom / zoom];
+    if (viewH > bh) [by, bh] = [(bh - viewH) / 2, viewH];
+    cam.setBounds(bx, by, bw, bh);
+    cam.setZoom(zoom * DPR);
     const self = this.room && this.avatars.get(this.room.sessionId);
     if (self) {
       cam.startFollow(self, true, 0.12, 0.12);
