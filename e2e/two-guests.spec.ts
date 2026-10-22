@@ -68,7 +68,8 @@ test("2人の客が入店画面から入り、ひとこと札とお互いの移�
   }
 
   // アリスが帰るとボブの店内人数が減る
+  // （公開中の店では、タブが閉じられたことにサーバーが気づくまで10秒ほどかかる。定期的な接続確認で気づくため）
   await ctxA.close();
-  await expect(bob.locator("#status")).toHaveText("いま店内 1人");
+  await expect(bob.locator("#status")).toHaveText("いま店内 1人", { timeout: 30_000 });
   await ctxB.close();
 });
