@@ -24,6 +24,14 @@ export async function enter(page: Page, name: string, tags: string[] = []) {
   await expect(form).toBeHidden();
 }
 
+/** 店の座標(x, y)が画面に映っていて、その上にボタンや会話欄が重なっていない（指で押せる）か */
+export async function isTappable(page: Page, x: number, y: number) {
+  return page.evaluate(({ x, y }) => {
+    const p = window.__yorunoba!.worldToScreen(x, y);
+    return document.elementFromPoint(p.x, p.y)?.tagName === "CANVAS";
+  }, { x, y });
+}
+
 /** 店の座標(x, y)を、いまのカメラの映し方で画面上の位置に直してタップする */
 export async function tapWorld(page: Page, x: number, y: number) {
   const pos = await page.evaluate(({ x, y }) => window.__yorunoba!.worldToScreen(x, y), { x, y });

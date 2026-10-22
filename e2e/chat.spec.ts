@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { avatars, bringIntoView, bubbles, enter, seats, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
+import { avatars, bringIntoView, bubbles, enter, isTappable, seats, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
 
 test("吹き出しで話し、ワンタップで反応し、席に座れる", async ({ browser, request }, testInfo) => {
   await waitForEmptyShop(request);
@@ -17,9 +17,14 @@ test("吹き出しで話し、ワンタップで反応し、席に座れる", as
   const me = everyone.find((a) => a.id === bobId)!;
   // 人と同じく、ほかの客が前に立っていない空き席を選ぶ（立っている人をタップすると名札カードが開く）
   const others = everyone.filter((a) => a.id !== bobId);
-  const seat = (await seats(bob))
-    .filter((s) => s.free && s.onScreen && others.every((o) => Math.hypot(o.x - s.x, o.y - s.y) > 60))
-    .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
+  // 会話欄・ボタン・画面の端の札の下にある席は押せないので、店が見えている所の席を選ぶ
+  const candidates = [];
+  for (const s of await seats(bob)) {
+    if (s.free && s.onScreen && others.every((o) => Math.hypot(o.x - s.x, o.y - s.y) > 60) && (await isTappable(bob, s.x, s.y))) {
+      candidates.push(s);
+    }
+  }
+  const seat = candidates.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y))[0];
   await tapWorld(bob, seat.x, seat.y);
   await expect.poll(async () => (await avatars(alice)).find((a) => a.id === bobId)?.seat).toBe(seat.id);
   await expect
