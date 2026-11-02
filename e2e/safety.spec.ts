@@ -4,8 +4,9 @@ import { avatars, bringIntoView, bubbles, closeGuestCard, enter, sessionId, tapW
 /** 相手のアバターをタップして名札カードを開き、通報する */
 async function report(page: Page, targetId: string, targetName: string) {
   const card = page.getByRole("dialog");
-  // 人と同じく、名札で相手を確かめてから押す。近くの別の客が開いたら、閉じて少しずらしてタップし直す
-  const nudges = [{ x: 0, y: 0 }, { x: 0, y: -12 }, { x: 8, y: 6 }];
+  // 人と同じく、名札で相手を確かめてから体を押す（座標は足元なので、少し上が体）。
+  // 近くの別の客が開いたら、閉じて少しずらしてタップし直す
+  const nudges = [{ x: 0, y: -28 }, { x: 0, y: -42 }, { x: 8, y: -16 }];
   for (const nudge of nudges) {
     const target = (await avatars(page)).find((a) => a.id === targetId)!;
     await bringIntoView(page, target.x, target.y, targetId);

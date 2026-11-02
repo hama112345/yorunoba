@@ -9,7 +9,7 @@ test("2人の客が入店画面から入り、ひとこと札とお互いの移�
   const alice = await ctxA.newPage();
   const bob = await ctxB.newPage();
 
-  await enter(alice, "アリス", ["サッカー", "仕事終わり"]);
+  await enter(alice, "アリス", ["サッカー", "仕事終わり"], "レディ");
 
   // ボブは入店前に「いま1人が飲んでる」が見える
   await bob.goto("/");
@@ -20,19 +20,20 @@ test("2人の客が入店画面から入り、ひとこと札とお互いの移�
   await expect(alice.locator("#status")).toHaveText("いま店内 2人");
   await expect(bob.locator("#status")).toHaveText("いま店内 2人");
 
-  // ボブの画面で、アリスのひとこと札が見える
+  // ボブの画面で、アリスのひとこと札と、アリスが選んだキャラ（レディ）が見える
   const aliceId = await sessionId(alice);
   await expect
     .poll(async () => (await avatars(bob)).find((a) => a.id === aliceId)?.tags)
     .toEqual(["サッカー", "仕事終わり"]);
+  expect((await avatars(bob)).find((a) => a.id === aliceId)?.look).toBe("lady");
 
   // 自分のアバターが画面内に映っている（スマホ縦でもカメラが追いかける）
   expect(await alice.evaluate(() => window.__yorunoba?.isSelfOnScreen())).toBe(true);
 
-  // アリスが自分の画面に映っている範囲（左上の床）をタップ → ボブの画面でもアリスがそこへ歩いていく
+  // アリスが自分の画面に映っている範囲（左上、カウンターとテーブルの間の通路）をタップ → ボブの画面でもアリスがそこへ歩いていく
   // スマホ縦では自分の周りしか映らないので、目的地は自分の位置から決める
   const start = (await avatars(alice)).find((a) => a.id === aliceId)!;
-  const target = { x: start.x - 120, y: start.y - 200 };
+  const target = { x: start.x - 120, y: 245 };
   await tapWorld(alice, target.x, target.y);
 
   await expect

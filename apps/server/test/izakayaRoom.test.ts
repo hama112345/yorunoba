@@ -2,11 +2,17 @@ import { Callbacks, Client, type Room } from "@colyseus/sdk";
 import {
   AI_REGULAR,
   EVT,
-  FLOOR,
   IzakayaState,
+  LOOKS,
   MSG,
+  OBSTACLES,
   ROOM_IZAKAYA,
   SEATS,
+  SPAWN_AREA,
+  STAFF_LOOK,
+  STAFF_SPOT,
+  WALK_AREA,
+  isWalkable,
   type ChatEvent,
   type JailedEvent,
   type JoinOptions,
@@ -88,9 +94,9 @@ describe("IzakayaRoom", () => {
       if (key === alice.sessionId) callbacks.listen(player, "x", (x) => seen.push(x));
     });
 
-    alice.send(MSG.move, { x: 300, y: 200 });
+    alice.send(MSG.move, { x: 300, y: 300 }); // テーブルの間の通路
     await waitFor(() => playerOf(bob, alice.sessionId)?.x === 300);
-    expect(playerOf(bob, alice.sessionId)?.y).toBe(200);
+    expect(playerOf(bob, alice.sessionId)?.y).toBe(300);
     expect(seen).toContain(300);
 
     await alice.leave();
@@ -103,12 +109,35 @@ describe("IzakayaRoom", () => {
     await waitFor(() => playerOf(room, room.sessionId) !== undefined);
     expect(playerOf(room, room.sessionId)?.name).toBe("名無しの客");
 
+    // 入口（のれん）の内側に出てくる
+    const start = playerOf(room, room.sessionId)!;
+    expect(isWalkable(start.x, start.y)).toBe(true);
+    expect(Math.abs(start.y - (SPAWN_AREA.y + SPAWN_AREA.h / 2))).toBeLessThanOrEqual(SPAWN_AREA.h);
+
     room.send(MSG.move, { x: "boom", y: null });
     room.send(MSG.move, { x: -999, y: 99999 });
-    await waitFor(() => playerOf(room, room.sessionId)?.x === FLOOR.wall);
-    expect(playerOf(room, room.sessionId)?.y).toBe(FLOOR.height - FLOOR.wall);
+    await waitFor(() => playerOf(room, room.sessionId)?.x === WALK_AREA.x);
+    expect(playerOf(room, room.sessionId)?.y).toBe(WALK_AREA.y + WALK_AREA.h);
+
+    // テーブルの上には立てない（いちばん近い外側に押し出される）
+    const table = OBSTACLES[0];
+    room.send(MSG.move, { x: table.x + table.w / 2, y: table.y + table.h - 3 });
+    await waitFor(() => playerOf(room, room.sessionId)?.y === table.y + table.h + 1);
+    const p = playerOf(room, room.sessionId)!;
+    expect(isWalkable(p.x, p.y)).toBe(true);
 
     await room.leave();
+  });
+
+  it("lets guests pick a character, but not the staff one", async () => {
+    const lady = await join("レディ", [], { look: "lady" });
+    const sneaky = await join("店員のふり", [], { look: STAFF_LOOK });
+    const junk = await join("いたずら", [], { look: "<img>" as string });
+    await waitFor(() => playerCount(junk) === 3);
+    expect(playerOf(junk, lady.sessionId)?.look).toBe("lady");
+    expect(LOOKS).toContain(playerOf(junk, sneaky.sessionId)?.look);
+    expect(LOOKS).toContain(playerOf(junk, junk.sessionId)?.look);
+    await Promise.all([lady.leave(), sneaky.leave(), junk.leave()]);
   });
 
   it("syncs sanitized topic tags", async () => {
@@ -401,9 +430,9 @@ describe("IzakayaRoom", () => {
     alice.onMessage(EVT.chat, (e: ChatEvent) => heard.push(e));
     alice.onMessage(EVT.notice, () => {});
 
-    // 客が1人なので、AI常連が来て（名札にAI）、カウンターに座り、あいさつする
+    // 客が1人なので、AI店員ゲンがカウンターの中に現れ（名札にAI・店員の絵・席はふさがない）、あいさつする
     await waitFor(() => playerOf(alice, AI_REGULAR.id)?.ai === true);
-    await waitFor(() => (playerOf(alice, AI_REGULAR.id)?.seat ?? "").startsWith("counter"));
+    expect(playerOf(alice, AI_REGULAR.id)).toMatchObject({ x: STAFF_SPOT.x, y: STAFF_SPOT.y, seat: "", look: STAFF_LOOK });
     await waitFor(() => heard.some((h) => h.from === AI_REGULAR.id));
     // 店内人数（入店画面の「いま○人」）にはAIを数えない
     const status = (await (await fetch(`http://localhost:${PORT}/api/status`)).json()) as ShopStatus;

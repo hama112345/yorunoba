@@ -17,11 +17,11 @@ export function showGuestCard(guest: GuestInfo, viewerIsStaff: boolean, onReport
 
   const title = document.createElement("p");
   title.className = "name";
-  title.textContent = guest.staff ? `🏮 ${guest.name}（店主）` : guest.ai ? `🤖 ${guest.name}（AI常連）` : guest.name; // textContentで入れる（HTMLとして解釈させない）
+  title.textContent = guest.staff ? `🏮 ${guest.name}（店主）` : guest.ai ? `🤖 ${guest.name}（AI店員）` : guest.name; // textContentで入れる（HTMLとして解釈させない）
   const tags = document.createElement("p");
   tags.className = "tags";
   tags.textContent = guest.ai
-    ? "店のAIです。人が少ない時間だけ、話し相手になります。人が増えたら帰ります"
+    ? "店のAI店員です。人が少ない時間だけ、カウンターで話し相手になります。人が増えたら奥に下がります"
     : guest.tags.length
       ? guest.tags.map((t) => `#${t}`).join(" ")
       : "ひとこと札なし";

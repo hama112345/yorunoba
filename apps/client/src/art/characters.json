@@ -10,11 +10,13 @@
    "id": "adventurer",
    "label": "冒険者",
    "url": "assets/chars/adventurer.webp",
+   "thumb": "assets/chars/adventurer-thumb.webp",
    "frameWidth": 101,
    "frameHeight": 134,
    "side": "left",
    "sitSide": "left",
    "staffOnly": false,
+   "sitOnFloor": false,
    "anims": {
     "idle": {
      "frames": [
@@ -103,11 +105,13 @@
    "id": "hoodie",
    "label": "パーカー",
    "url": "assets/chars/hoodie.webp",
+   "thumb": "assets/chars/hoodie-thumb.webp",
    "frameWidth": 104,
    "frameHeight": 131,
    "side": "right",
    "sitSide": "left",
    "staffOnly": false,
+   "sitOnFloor": true,
    "anims": {
     "idle": {
      "frames": [
@@ -191,11 +195,13 @@
    "id": "bookworm",
    "label": "読書家",
    "url": "assets/chars/bookworm.webp",
+   "thumb": "assets/chars/bookworm-thumb.webp",
    "frameWidth": 118,
    "frameHeight": 128,
    "side": "right",
    "sitSide": "left",
    "staffOnly": false,
+   "sitOnFloor": true,
    "anims": {
     "idle": {
      "frames": [
@@ -295,11 +301,13 @@
    "id": "waiter",
    "label": "店員",
    "url": "assets/chars/waiter.webp",
+   "thumb": "assets/chars/waiter-thumb.webp",
    "frameWidth": 116,
    "frameHeight": 137,
    "side": "left",
    "sitSide": "left",
    "staffOnly": true,
+   "sitOnFloor": false,
    "anims": {
     "idle": {
      "frames": [
@@ -403,11 +411,13 @@
    "id": "mechanic",
    "label": "技師",
    "url": "assets/chars/mechanic.webp",
+   "thumb": "assets/chars/mechanic-thumb.webp",
    "frameWidth": 102,
    "frameHeight": 131,
    "side": "left",
    "sitSide": "left",
    "staffOnly": false,
+   "sitOnFloor": true,
    "anims": {
     "idle": {
      "frames": [
@@ -503,11 +513,13 @@
    "id": "gentleman",
    "label": "紳士",
    "url": "assets/chars/gentleman.webp",
+   "thumb": "assets/chars/gentleman-thumb.webp",
    "frameWidth": 89,
    "frameHeight": 132,
    "side": "left",
    "sitSide": "left",
    "staffOnly": false,
+   "sitOnFloor": false,
    "anims": {
     "idle": {
      "frames": [
@@ -605,11 +617,13 @@
    "id": "lady",
    "label": "レディ",
    "url": "assets/chars/lady.webp",
+   "thumb": "assets/chars/lady-thumb.webp",
    "frameWidth": 124,
    "frameHeight": 128,
    "side": "left",
    "sitSide": "left",
    "staffOnly": false,
+   "sitOnFloor": false,
    "anims": {
     "idle": {
      "frames": [

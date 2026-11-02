@@ -12,12 +12,16 @@ export async function waitForEmptyShop(request: APIRequestContext) {
     .toBe(0);
 }
 
-/** のれんの前（入店画面）で名前・ひとこと札を入れて入店する */
-export async function enter(page: Page, name: string, tags: string[] = []) {
+/** のれんの前（入店画面）で名前・キャラ・ひとこと札を選んで入店する */
+export async function enter(page: Page, name: string, tags: string[] = [], look?: string) {
   await page.goto("/");
   const form = page.locator("#entrance");
   await expect(form.getByRole("button", { name: "のれんをくぐる" })).toBeDisabled();
   await form.getByPlaceholder("名無しの客").fill(name);
+  if (look) {
+    await form.getByRole("button", { name: look, exact: true }).click();
+    await expect(form.getByRole("button", { name: look, exact: true })).toHaveAttribute("aria-pressed", "true");
+  }
   for (const tag of tags) await form.getByRole("button", { name: `#${tag}` }).click();
   await form.getByLabel("18歳以上です").check();
   await form.getByRole("button", { name: "のれんをくぐる" }).click();

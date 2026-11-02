@@ -15,7 +15,8 @@
 - **安全**：NGワード・連絡先の自動ブロック、通報→留置所（10分入店禁止）、店主の🏮権限、規約とプライバシーポリシー。
 - **営業の節目**：21:00開店・23:45ラストオーダー・24:00閉店を会話欄でお知らせ（時間外の入店禁止は設定で有効化）。
 - **検証の仕掛け**：右上の「🎫 常連パス（準備中）」（月480円の案といくらなら入るか）、「📨 誘う」（招待URLの共有）、PostHogでの計測。
-- 背景・キャラの絵は仮。本物の絵は `docs/art/` の指示書で用意し、届いたら差し替える。
+- **見た目**：居酒屋の背景（AI生成）と、入店画面で選べるキャラ6人（歩く・座る・手を振る・笑う・飲む）。テーブルの奥の人は天板に隠れて立体に見える。客が少ないときはカウンターの中にAI店員ゲンが立つ（APIキーを入れたとき）。
+- 絵の差し替え・作り直しは [art/README.md](./art/README.md)。
 
 ## 公開する（Render）
 GitHubのリポジトリが非公開でも公開でも、この手順で公開できる。遊ぶ人は発行されたURLで入店するので、GitHubを見せる必要はない。
@@ -63,11 +64,11 @@ RenderがGitHubのリポジトリを読めていない（非公開にした後�
 | `VITE_POSTHOG_HOST` | PostHogの送り先（EUで作った場合は `https://eu.i.posthog.com`） | 既定は米国（`https://us.i.posthog.com`） |
 | `VITE_WAITLIST_URL` | 事前登録フォームのURL（`https://` で始まる） | 常連パスと準備中画面に「お知らせを受け取る」が出る |
 | `SHOP_HOURS_ENFORCED` | `true` | 21:00〜24:00（日本時間）以外は入店できなくなる。一般公開（D10）から |
-| `ANTHROPIC_API_KEY` | AnthropicのAPIキー | AI店員（Claude Haiku 5.5）が見回りと通報の一次審査を始め、客が少ない時間にAI常連「ゲン」が現れる。起動時のログに「AI店員: 準備OK」と出れば動いている |
+| `ANTHROPIC_API_KEY` | AnthropicのAPIキー | AI店員（Claude Haiku 5.5）が見回りと通報の一次審査を始め、客が少ない時間にAI店員「ゲン」がカウンターの中に現れる。起動時のログに「AI店員: 準備OK」と出れば動いている |
 | `AI_STAFF` | `off` | APIキーを入れたまま、AI店員だけを止める |
 | `AI_STAFF_DAILY_LIMIT` | 数字（既定 3000） | AI店員が1日に呼べる回数の上限（費用の上限） |
-| `AI_REGULAR` | `off` | APIキーを入れたまま、AI常連（ゲン）だけを止める |
-| `AI_REGULAR_DAILY_LIMIT` | 数字（既定 2000） | AI常連が1日に返事を考える回数の上限（費用の上限） |
+| `AI_REGULAR` | `off` | APIキーを入れたまま、AI店員ゲン（話し相手）だけを止める。見回りは続ける |
+| `AI_REGULAR_DAILY_LIMIT` | 数字（既定 2000） | ゲンが1日に返事を考える回数の上限（費用の上限） |
 | `JAIL_BY_IP` | `true` | 留置所の判定に端末IDに加えてIPも使う（携帯回線の巻き込みに注意） |
 
 SNSで共有されたときの画像（`apps/client/public/og.png`）は、実際の店の画面から作っている。絵を差し替えたら、`npm run build && npm start` を動かした状態で `node scripts/og-image.mjs` を実行して作り直す。公開URLが変わったら `apps/client/index.html` の `og:url` と `og:image` も直す。
@@ -94,4 +95,4 @@ npm run test:e2e     # 2つのブラウザで入店→移動が同期される�
 | テスト | Vitest, Playwright |
 | 計測 | PostHog（キーを入れたときだけ） |
 | AI店員 | Claude Haiku 5.5（APIキーを入れたときだけ） |
-| AI常連 | Claude Haiku 5.5（APIキーを入れたときだけ。客が1〜2人のときに現れる） |
+| AI店員ゲン（話し相手） | Claude Haiku 5.5（APIキーを入れたときだけ。客が1〜2人のときに現れる） |

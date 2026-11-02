@@ -4,7 +4,6 @@ import {
   AI_REGULAR,
   AVATAR_COLORS,
   EVT,
-  FLOOR,
   IzakayaState,
   JAIL_MS,
   MAX_CLIENTS_PER_ROOM,
@@ -13,12 +12,14 @@ import {
   REPORTS_TO_JAIL,
   REPORT_WINDOW_MS,
   RULE_STRIKES_TO_JAIL,
-  SEATS,
+  SPAWN_AREA,
+  STAFF_SPOT,
   clampToFloor,
   findSeat,
   isReaction,
   isValidColor,
   sanitizeChat,
+  sanitizeLook,
   sanitizeName,
   sanitizeTags,
   shopPhase,
@@ -42,15 +43,12 @@ import { SELF_SPEAKER, aiRegularSettings, getAiRegular } from "../npc/aiRegular.
 /** 出現位置どうしの最低距離（重なると、タップで別の人を選んでしまう） */
 const SPAWN_GAP = 44;
 
-/** 入口（のれん）付近の、ほかの客と重ならない位置に出現させる */
+/** 入口（のれん）の内側の、ほかの客と重ならない位置に出現させる */
 function entrancePosition(others: { x: number; y: number }[]) {
-  let best = { x: FLOOR.width / 2, y: FLOOR.height - FLOOR.wall - 24 };
+  let best = clampToFloor(SPAWN_AREA.x + SPAWN_AREA.w / 2, SPAWN_AREA.y + SPAWN_AREA.h / 2);
   let bestGap = -1;
   for (let i = 0; i < 12; i++) {
-    const p = clampToFloor(
-      FLOOR.width / 2 + (Math.random() - 0.5) * 360,
-      FLOOR.height - FLOOR.wall - 16 - Math.random() * 70,
-    );
+    const p = clampToFloor(SPAWN_AREA.x + Math.random() * SPAWN_AREA.w, SPAWN_AREA.y + Math.random() * SPAWN_AREA.h);
     const gap = Math.min(Infinity, ...others.map((o) => Math.hypot(o.x - p.x, o.y - p.y)));
     if (gap >= SPAWN_GAP) return p;
     if (gap > bestGap) [best, bestGap] = [p, gap];
@@ -132,7 +130,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   private patrolling = false;
   /** 留置所へ送っている途中の客 */
   private jailing = new Set<string>();
-  /** AI常連（店にいないときは undefined） */
+  /** AI店員ゲン（店にいないときは undefined） */
   private regular?: {
     lastSpokeAt: number;
     /** 人が増えて混んできた時刻（しばらく続いたら帰る） */
@@ -141,7 +139,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     asking: boolean;
     leaving: boolean;
   };
-  /** 最後に誰かが話した時刻（店が静かならAI常連から話を振る） */
+  /** 最後に誰かが話した時刻（店が静かならAI店員ゲンから話を振る） */
   private lastChatAt = Date.now();
   private lastBubbleId = 0;
   private phase = shopPhase();
@@ -165,7 +163,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     this.clock.setInterval(() => this.checkHours(), 20_000);
     // AI店員の見回り（APIキーが無いときは何もしない）
     this.clock.setInterval(() => void this.patrol(), aiStaffSettings.patrolMs);
-    // AI常連の出入り（客が少ないときだけ現れる。APIキーが無いときは現れない）
+    // AI店員ゲンの出入り（客が少ないときだけ現れる。APIキーが無いときは現れない）
     this.clock.setInterval(() => this.regularTick(), aiRegularSettings.tickMs);
 
     this.onMessage(MSG.move, (client: Client, payload: Partial<MovePayload>) => {
@@ -258,6 +256,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     player.color = isValidColor(options.color)
       ? options.color
       : AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+    player.look = sanitizeLook(options.look);
     player.x = x;
     player.y = y;
     this.state.players.set(client.sessionId, player);
@@ -319,7 +318,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     }
   }
 
-  /** AI常連の出入りと、静かなときの話題振り（定期的に呼ぶ） */
+  /** AI店員ゲンの出入りと、静かなときの話題振り（定期的に呼ぶ） */
   private regularTick(now = Date.now()) {
     const ai = getAiRegular();
     const guests = this.clients.length;
@@ -339,31 +338,22 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     if (now - this.lastChatAt >= silenceMs && now - this.regular.lastSpokeAt >= silenceMs) void this.regularSpeaks();
   }
 
-  /** AI常連が入口から入ってきて、カウンターの空いている席に座る */
+  /** AI店員ゲンが、カウンターの中に現れる（席には座らないので、客の席は減らない） */
   private regularArrives(now: number) {
     const player = new Player();
     player.ai = true;
     player.name = AI_REGULAR.name;
     player.color = AI_REGULAR.color;
+    player.look = AI_REGULAR.look;
     player.tags = AI_REGULAR.tags.join(",");
-    const start = entrancePosition([...this.state.players.values()]);
-    player.x = start.x;
-    player.y = start.y;
+    player.x = STAFF_SPOT.x;
+    player.y = STAFF_SPOT.y;
     this.state.players.set(AI_REGULAR.id, player);
     this.regular = { lastSpokeAt: now, asking: false, leaving: false };
-    // 入ってきてから席へ歩く（画面では歩いて見える）
-    this.clock.setTimeout(() => {
-      // カウンター席から順に空きを探す（SEATS はカウンターが先）
-      const seat = SEATS.find((s) => !this.isSeatTaken(s.id, AI_REGULAR.id));
-      if (!seat || !this.state.players.has(AI_REGULAR.id)) return;
-      player.seat = seat.id;
-      player.x = seat.x;
-      player.y = seat.y;
-    }, 500);
     this.clock.setTimeout(() => this.regularSays("いらっしゃい！ゆっくりしていってくださいね"), aiRegularSettings.greetDelayMs);
   }
 
-  /** AI常連が帰る。bye なら挨拶してから */
+  /** AI店員ゲンが帰る。bye なら挨拶してから */
   private regularLeaves(bye: boolean) {
     if (!this.regular || this.regular.leaving) return;
     this.regular.leaving = true;
@@ -375,7 +365,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     }, bye ? aiRegularSettings.byeDelayMs : 0);
   }
 
-  /** 客の発言のあと、少し間を置いてAI常連が返事をするか考える（続けて話しすぎない） */
+  /** 客の発言のあと、少し間を置いてAI店員ゲンが返事をするか考える（続けて話しすぎない） */
   private scheduleRegularReply() {
     const regular = this.regular;
     if (!regular || regular.leaving || regular.replyTimer) return;
@@ -387,7 +377,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     }, wait);
   }
 
-  /** 直近の会話をAIに見せて、AI常連が何か言うなら言う（黙ることもある） */
+  /** 直近の会話をAIに見せて、AI店員ゲンが何か言うなら言う（黙ることもある） */
   private async regularSpeaks() {
     const ai = getAiRegular();
     const regular = this.regular;
@@ -407,7 +397,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     }
   }
 
-  /** AI常連の発言を吹き出しにする（客の発言と同じく、保存はしない） */
+  /** AI店員ゲンの発言を吹き出しにする（客の発言と同じく、保存はしない） */
   private regularSays(text: string, evenIfLeaving = false) {
     const regular = this.regular;
     if (!regular || (regular.leaving && !evenIfLeaving) || !this.state.players.has(AI_REGULAR.id)) return;

@@ -4,14 +4,6 @@
 /** Colyseus上の部屋名（＝店の種類） */
 export const ROOM_IZAKAYA = "izakaya";
 
-/** 店内の広さ（ピクセル）。Phaserの座標系と一致させる */
-export const FLOOR = {
-  width: 960,
-  height: 640,
-  /** 壁の厚み。アバターはこの内側だけ歩ける */
-  wall: 48,
-} as const;
-
 /** 1店舗あたりの最大人数（居酒屋っぽさを保つため少なめ） */
 export const MAX_CLIENTS_PER_ROOM = 30;
 
@@ -113,6 +105,8 @@ export const MAX_TAGS = 2;
 export interface JoinOptions {
   name?: string;
   color?: number;
+  /** キャラ（LOOKS の中から） */
+  look?: string;
   tags?: string[];
   /** 端末ごとのランダムなID（留置所の判定に使う。個人は特定しない） */
   deviceId?: string;
@@ -133,17 +127,6 @@ export interface ShopStatus {
 export interface MovePayload {
   x: number;
   y: number;
-}
-
-/** 歩ける範囲に座標を収める */
-export function clampToFloor(x: number, y: number): MovePayload {
-  const min = FLOOR.wall;
-  const maxX = FLOOR.width - FLOOR.wall;
-  const maxY = FLOOR.height - FLOOR.wall;
-  return {
-    x: Math.round(Math.min(Math.max(x, min), maxX)),
-    y: Math.round(Math.min(Math.max(y, min), maxY)),
-  };
 }
 
 /** ニックネームを整える。空なら「名無しの客」 */
@@ -182,17 +165,33 @@ export function isValidColor(color: unknown): color is number {
   return typeof color === "number" && (AVATAR_COLORS as readonly number[]).includes(color);
 }
 
+/**
+ * 客が入店時に選べるキャラ（絵は apps/client/public/assets/chars/<id>.webp、切り出し方は art/characters.json）。
+ * 店員の絵（STAFF_LOOK）は、客と見分けがつくように客には選ばせない
+ */
+export const LOOKS = ["adventurer", "hoodie", "bookworm", "mechanic", "gentleman", "lady"] as const;
+export type Look = (typeof LOOKS)[number];
+/** 店員（AI店員ゲン）の絵 */
+export const STAFF_LOOK = "waiter";
+
+/** キャラを整える。一覧にないものは、一覧からランダムに選ぶ */
+export function sanitizeLook(raw: unknown): Look {
+  return (LOOKS as readonly unknown[]).includes(raw) ? (raw as Look) : LOOKS[Math.floor(Math.random() * LOOKS.length)];
+}
+
 export * from "./layout";
 export { IzakayaState, Player } from "./schema";
 export * from "./hours";
 
 /**
- * AI常連。客が少ない時間（1〜2人）だけ現れて、カウンターで話し相手になる。
- * 名札に「AI」と出し、人のふりはしない。sessionId の代わりにこのIDで店内の状態に入る
+ * AI店員「ゲン」（コードの中では AI_REGULAR と呼ぶ。最初は常連客の役だった）。
+ * 客が少ない時間（1〜2人）だけカウンターの中に現れて、話し相手になる。
+ * 名札に「AI店員」と出し、人のふりはしない。sessionId の代わりにこのIDで店内の状態に入る
  */
 export const AI_REGULAR = {
   id: "ai-regular",
   name: "ゲン",
   color: 0x8fb8de,
+  look: STAFF_LOOK,
   tags: ["お酒好き"],
 } as const;

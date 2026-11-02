@@ -5,6 +5,7 @@ import { schema, t, type SchemaType } from "@colyseus/schema";
 export const Player = schema(
   {
     name: t.string().default(""),
+    /** 絵が読めないときの丸いアバターの色 */
     color: t.uint32().default(0),
     x: t.int16().default(0),
     y: t.int16().default(0),
@@ -14,8 +15,10 @@ export const Player = schema(
     seat: t.string().default(""),
     /** 店主（店員）なら true。名札に「店主」と出る */
     staff: t.boolean().default(false),
-    /** AI常連なら true。名札に「AI」と出る（人のふりをしない） */
+    /** AI店員（ゲン）なら true。名札に「AI店員」と出る（人のふりをしない） */
     ai: t.boolean().default(false),
+    /** キャラ（LOOKS の中から。AI店員は STAFF_LOOK）。開いたままの古い画面と食い違わないよう、項目は末尾に足す */
+    look: t.string().default(""),
   },
   "Player",
 );

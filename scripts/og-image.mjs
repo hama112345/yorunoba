@@ -9,18 +9,19 @@ const OUT = new URL("../apps/client/public/og.png", import.meta.url).pathname;
 const SIZE = { width: 1200, height: 630 };
 
 const guests = [
-  { name: "たろう", tags: ["仕事終わり"], line: "今日もおつかれさまです！" },
-  { name: "みさき", tags: ["お酒好き"], line: "とりあえず生で🍺" },
-  { name: "けん", tags: ["サッカー"], line: "昨日の試合みました？" },
+  { name: "たろう", look: "冒険者", tags: ["仕事終わり"], line: "今日もおつかれさまです！" },
+  { name: "みさき", look: "レディ", tags: ["お酒好き"], line: "とりあえず生で🍺" },
+  { name: "けん", look: "技師", tags: ["サッカー"], line: "昨日の試合みました？" },
 ];
 
 const browser = await chromium.launch();
 const pages = [];
 for (const g of guests) {
   const page = await browser.newPage({ viewport: SIZE, deviceScaleFactor: 1 });
-  await page.goto(BASE);
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
   const form = page.locator("#entrance");
   await form.getByPlaceholder("名無しの客").fill(g.name);
+  await form.getByRole("button", { name: g.look, exact: true }).click();
   for (const t of g.tags) await form.getByRole("button", { name: `#${t}` }).click();
   await form.getByLabel("18歳以上です").check();
   await form.getByRole("button", { name: "のれんをくぐる" }).click();
@@ -28,17 +29,17 @@ for (const g of guests) {
   pages.push(page);
 }
 
-// 3人で少し歩いて、カウンター寄りに集まってから話す
+// 3人で少し歩いて、カウンターとテーブルの間の通路に集まってから話す（座標は packages/shared/src/layout.ts の店の座標）
 const spots = [
-  { x: 380, y: 300 },
-  { x: 470, y: 330 },
-  { x: 560, y: 300 },
+  { x: 300, y: 250 },
+  { x: 480, y: 268 },
+  { x: 660, y: 250 },
 ];
 for (const [i, page] of pages.entries()) {
   const pos = await page.evaluate(({ x, y }) => window.__yorunoba.worldToScreen(x, y), spots[i]);
   await page.mouse.click(pos.x, pos.y);
 }
-await pages[0].waitForTimeout(2500);
+await pages[0].waitForTimeout(4000);
 for (const [i, page] of pages.entries()) {
   await page.getByLabel("発言").fill(guests[i].line);
   await page.getByLabel("発言").press("Enter");

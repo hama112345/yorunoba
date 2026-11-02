@@ -1,7 +1,7 @@
 import {
-  AVATAR_COLORS,
   CLOSE_HOUR,
   LAST_ORDER,
+  LOOKS,
   MAX_TAGS,
   NAME_MAX_LENGTH,
   OPEN_HOUR,
@@ -9,10 +9,10 @@ import {
   type ShopStatus,
 } from "@yorunoba/shared";
 import { track } from "../analytics";
+import { findCharacter } from "../art/characters";
 import type { Profile } from "../net/connection";
 import { WAITLIST_URL } from "./regularsPass";
 
-const hex = (color: number) => `#${color.toString(16).padStart(6, "0")}`;
 const pad = (n: number) => String(n).padStart(2, "0");
 const HOURS_TEXT = `営業 ${OPEN_HOUR}:00〜${CLOSE_HOUR}:00（日本時間・ラストオーダー ${LAST_ORDER.hour}:${pad(LAST_ORDER.minute)}）`;
 
@@ -23,8 +23,17 @@ function untilText(ms: number): string {
   return h > 0 ? `あと${h}時間${minutes % 60}分` : `あと${minutes}分`;
 }
 
+/** キャラ選びのボタン。正面の立ち姿を見せる */
+function lookButton(id: string): string {
+  const c = findCharacter(id);
+  if (!c) return "";
+  return `<button type="button" class="look" data-look="${c.id}" aria-label="${c.label}">
+    <img class="look-art" src="${c.thumb}" alt="" /><span class="look-name">${c.label}</span>
+  </button>`;
+}
+
 /**
- * 入店画面（のれんの前）。名前・色・ひとこと札を選び、18歳以上を確認してから入店する。
+ * 入店画面（のれんの前）。名前・キャラ・ひとこと札を選び、18歳以上を確認してから入店する。
  * 文字入力はcanvasではなくDOMで作る（日本語入力とスマホのキーボードのため）。
  */
 export function showEntrance(
@@ -52,13 +61,8 @@ export function showEntrance(
       </label>
 
       <fieldset class="field">
-        <legend>色</legend>
-        <div class="swatches">
-          ${AVATAR_COLORS.map(
-            (c) =>
-              `<button type="button" class="swatch" data-color="${c}" style="--c:${hex(c)}" aria-label="色 ${hex(c)}"></button>`,
-          ).join("")}
-        </div>
+        <legend>キャラ</legend>
+        <div class="looks">${LOOKS.map(lookButton).join("")}</div>
       </fieldset>
 
       <fieldset class="field">
@@ -97,13 +101,13 @@ export function showEntrance(
   // 営業時間外（入店禁止が有効なとき）は、開店時刻まで入店ボタンを押せなくする
   let opensAt: number | null = null;
 
-  let color = initial.color;
+  let look = initial.look;
   const tags = new Set<string>(initial.tags);
   nameInput.value = initial.name;
 
   const render = () => {
-    root.querySelectorAll<HTMLButtonElement>(".swatch").forEach((b) => {
-      b.setAttribute("aria-pressed", String(Number(b.dataset.color) === color));
+    root.querySelectorAll<HTMLButtonElement>(".look").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.look === look));
     });
     root.querySelectorAll<HTMLButtonElement>(".chip").forEach((b) => {
       const on = tags.has(b.dataset.tag!);
@@ -117,9 +121,9 @@ export function showEntrance(
     enter.disabled = !adult.checked || isClosed || Boolean(enter.dataset.busy);
   };
 
-  root.querySelector(".swatches")!.addEventListener("click", (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(".swatch");
-    if (b) color = Number(b.dataset.color);
+  root.querySelector(".looks")!.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(".look");
+    if (b) look = b.dataset.look!;
     render();
   });
   root.querySelector(".chips")!.addEventListener("click", (e) => {
@@ -140,7 +144,7 @@ export function showEntrance(
     enter.textContent = "入店中…";
     error.hidden = true;
     try {
-      await onEnter({ name: nameInput.value.trim(), color, tags: [...tags] });
+      await onEnter({ name: nameInput.value.trim(), color: initial.color, look, tags: [...tags] });
       root.remove();
     } catch (err) {
       console.error(err);

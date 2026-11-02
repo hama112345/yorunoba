@@ -27,7 +27,7 @@ declare global {
     /** E2Eテスト用の窓口。本番でも害はないので常に出しておく */
     __yorunoba?: {
       sessionId: string;
-      avatars: () => { id: string; x: number; y: number; tags: string[]; seat: string }[];
+      avatars: () => { id: string; x: number; y: number; tags: string[]; seat: string; look: string }[];
       bubbles: () => { id: number; text: string; x: number; y: number; alpha: number; reactions: Record<string, number> }[];
       seats: () => { id: string; x: number; y: number; free: boolean; onScreen: boolean }[];
       isSelfOnScreen: () => boolean;

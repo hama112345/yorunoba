@@ -2,6 +2,7 @@ import { Client, type Room } from "@colyseus/sdk";
 import {
   AVATAR_COLORS,
   IzakayaState,
+  LOOKS,
   ROOM_IZAKAYA,
   isValidColor,
   sanitizeTags,
@@ -11,7 +12,7 @@ import {
 
 export type IzakayaRoom = Room<any, IzakayaState>;
 /** 入店画面で入力して、次回のために覚えておく項目 */
-export type Profile = Required<Pick<JoinOptions, "name" | "color" | "tags">>;
+export type Profile = Required<Pick<JoinOptions, "name" | "color" | "look" | "tags">>;
 
 /** 開発中はローカルのサーバー（2567番）、本番は同じURLのサーバーにつなぐ */
 function serverUrl(): string {
@@ -22,7 +23,7 @@ function serverUrl(): string {
 
 const PROFILE_KEY = "yorunoba:profile";
 
-/** 前回の入店時のプロフィール。初めてなら空欄＋ランダムな色 */
+/** 前回の入店時のプロフィール。初めてなら空欄＋ランダムなキャラ */
 export function loadProfile(): Profile {
   let saved: Partial<JoinOptions> = {};
   try {
@@ -35,6 +36,10 @@ export function loadProfile(): Profile {
     color: isValidColor(saved.color)
       ? saved.color
       : AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+    look:
+      typeof saved.look === "string" && (LOOKS as readonly string[]).includes(saved.look)
+        ? saved.look
+        : LOOKS[Math.floor(Math.random() * LOOKS.length)],
     tags: sanitizeTags(saved.tags),
   };
 }

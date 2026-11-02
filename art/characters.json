@@ -1,5 +1,5 @@
 {
-  "_説明": "キャラの絵の切り出し方。frames は art/source の絵を自動で切り分けたときの「行.列」（python3 art/build.py --preview フォルダ で番号の一覧が出る）。くっついている2人は split で分け、左から「行.列:0」「行.列:1」と呼ぶ。side は歩く絵、sitSide は横向きに座る絵が左右どちらを向いているか。scale は元の絵で行ごとに大きさが違うときの補正。腰や膝で切れている絵は、立っている人として出すと浮いて見えるので使わない",
+  "_説明": "キャラの絵の切り出し方。frames は art/source の絵を自動で切り分けたときの「行.列」（python3 art/build.py --preview フォルダ で番号の一覧が出る）。くっついている2人は split で分け、左から「行.列:0」「行.列:1」と呼ぶ。side は歩く絵、sitSide は横向きに座る絵が左右どちらを向いているか。scale は元の絵で行ごとに大きさが違うときの補正。sitOnFloor は座る絵に椅子が描かれていない（床に座っている）キャラで、店では椅子の座面の高さまで持ち上げて座らせる。腰や膝で切れている絵は、立っている人として出すと浮いて見えるので使わない",
   "targetHeight": 124,
   "characters": [
     {
@@ -64,6 +64,7 @@
     },
     {
       "id": "hoodie",
+      "sitOnFloor": true,
       "label": "パーカー",
       "source": "hoodie.png",
       "side": "right",
@@ -128,6 +129,7 @@
     },
     {
       "id": "bookworm",
+      "sitOnFloor": true,
       "label": "読書家",
       "source": "bookworm.png",
       "side": "right",
@@ -269,6 +271,7 @@
     },
     {
       "id": "mechanic",
+      "sitOnFloor": true,
       "label": "技師",
       "source": "mechanic.png",
       "side": "left",

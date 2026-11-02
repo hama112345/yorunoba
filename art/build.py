@@ -6,7 +6,7 @@
   python3 art/build.py --preview 出力先フォルダ   # 切り出し番号の一覧と、動きごとの確認画像も作る
 
 - 入力：art/source/*.png（届いた絵そのまま）と art/characters.json（どの絵をどの動きに使うか）
-- 出力：apps/client/public/assets/chars/<id>.webp（同じ大きさのコマを並べた1枚）
+- 出力：apps/client/public/assets/chars/<id>.webp（同じ大きさのコマを並べた1枚）と <id>-thumb.webp（入店画面用）
         apps/client/public/assets/izakaya-bg.webp（背景）
         apps/client/src/art/characters.json（コマの大きさと動きの対応）
 必要なもの：Python 3 と Pillow・numpy
@@ -245,6 +245,11 @@ def build_character(spec, target, preview_dir=None):
     out.parent.mkdir(parents=True, exist_ok=True)
     # 軽くするため少しだけ圧縮する（透明部分の形はそのまま）
     sheet.save(out, "WEBP", quality=90, alpha_quality=100, method=6)
+    # 入店画面のキャラ選び用に、正面の立ち姿（待機の1コマ目）を余白なしで1枚にする
+    face = scaled[spec["anims"]["idle"][0]]
+    face = face.crop(face.getbbox())
+    thumb = OUT_IMG / "chars" / f"{spec['id']}-thumb.webp"
+    face.save(thumb, "WEBP", quality=90, alpha_quality=100, method=6)
     anims = {name: {"frames": [index[k] for k in ks], "rate": RATES.get(name, 4)} for name, ks in spec["anims"].items()}
     if preview_dir:
         save_anim_preview(sheet, fw, fh, anims, preview_dir / f"anims-{spec['id']}.png")
@@ -253,11 +258,13 @@ def build_character(spec, target, preview_dir=None):
         "id": spec["id"],
         "label": spec["label"],
         "url": f"assets/chars/{spec['id']}.webp",
+        "thumb": f"assets/chars/{spec['id']}-thumb.webp",
         "frameWidth": fw,
         "frameHeight": fh,
         "side": spec["side"],
         "sitSide": spec.get("sitSide", spec["side"]),
         "staffOnly": bool(spec.get("staffOnly")),
+        "sitOnFloor": bool(spec.get("sitOnFloor")),
         "anims": anims,
     }
 

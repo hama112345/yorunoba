@@ -1,9 +1,12 @@
 import { Callbacks } from "@colyseus/sdk";
 import {
+  BG_SCALE,
   ENTRANCE,
   EVT,
   FLOOR,
+  LANTERN_SPOTS,
   MSG,
+  OCCLUDERS,
   SEATS,
   clampToFloor,
   type ChatEvent,
@@ -16,7 +19,7 @@ import { ASSETS } from "../assets";
 import { DPR } from "../display";
 import type { IzakayaRoom } from "../net/connection";
 import { Avatar } from "../objects/Avatar";
-import { drawIzakaya, lanternPositions } from "../objects/izakayaDecor";
+import { drawIzakaya } from "../objects/izakayaDecor";
 import { SpeechBubble } from "../objects/SpeechBubble";
 import { showGuests } from "../ui/hud";
 import { closeGuestCard } from "../ui/guestCard";
@@ -40,9 +43,11 @@ export class IzakayaScene extends Phaser.Scene {
   private avatars = new Map<string, Avatar>();
   /** 画面に出ている吹き出し（吹き出し番号 → 吹き出し）。消えたものは自動で外れる */
   private bubbles = new Map<number, SpeechBubble>();
-  /** 店の背景（人数に応じて照明の色を変える） */
-  private roomBg!: Phaser.GameObjects.Image;
+  /** 店の背景と、人より手前に重ねる部分（人数に応じて照明の色を変える） */
+  private roomBg: Phaser.GameObjects.Image[] = [];
   private brightness = { t: 0 };
+  /** 入店した時刻（これより後に来た人だけ、入ってきたときに乾杯する） */
+  private enteredAt = 0;
 
   constructor() {
     super("izakaya");
@@ -50,9 +55,18 @@ export class IzakayaScene extends Phaser.Scene {
 
   create() {
     const bg = ASSETS.izakayaBackground;
-    this.roomBg = this.textures.exists(bg.key)
-      ? this.add.image(0, 0, bg.key).setOrigin(0).setDepth(-1000)
-      : drawIzakaya(this);
+    if (this.textures.exists(bg.key)) {
+      this.roomBg.push(this.add.image(0, 0, bg.key).setOrigin(0).setDisplaySize(FLOOR.width, FLOOR.height).setDepth(-1000));
+      // テーブルの天板やカウンターを背景から切り抜いて人より手前に重ね、奥にいる人の足元を隠す（立体に見せる）
+      for (const o of OCCLUDERS) {
+        const [x1, y1, x2, y2] = o.src;
+        this.roomBg.push(
+          this.add.image(0, 0, bg.key).setOrigin(0).setScale(BG_SCALE).setCrop(x1, y1, x2 - x1, y2 - y1).setDepth(o.depth),
+        );
+      }
+    } else {
+      this.roomBg.push(drawIzakaya(this));
+    }
     this.addLanternGlows();
     this.applyBrightness(0);
 
@@ -86,12 +100,28 @@ export class IzakayaScene extends Phaser.Scene {
   enterRoom(room: IzakayaRoom) {
     this.room = room;
     this.game.loop.wake();
+    this.enteredAt = this.time.now;
     const callbacks = Callbacks.get(room);
     callbacks.onAdd("players", (player, sessionId) => {
       const isSelf = sessionId === room.sessionId;
       const tags = player.tags ? player.tags.split(",") : [];
-      const avatar = new Avatar(this, player.x, player.y, player.name, player.color, tags, isSelf, player.staff, player.ai);
+      const avatar = new Avatar(this, player.x, player.y, {
+        name: player.name,
+        color: player.color,
+        look: player.look,
+        tags,
+        isSelf,
+        staff: player.staff,
+        ai: player.ai,
+      });
       avatar.seat = player.seat;
+      if (player.ai) {
+        // AI店員はカウンターの中にふわっと現れる
+        avatar.fadeIn();
+      } else if (isSelf || this.time.now - this.enteredAt > 1500) {
+        // 入ってきた人（自分も）は、のれんをくぐったところで乾杯（手を振る）
+        this.time.delayedCall(400, () => avatar.active && avatar.playEmote("cheer"));
+      }
       avatar.on("tap", () => this.game.events.emit("guest-tap", sessionId));
       this.avatars.set(sessionId, avatar);
       // 自分の移動はタップ時に先に動かしているので、サーバーの値は他人のぶんだけ反映する
@@ -113,7 +143,11 @@ export class IzakayaScene extends Phaser.Scene {
     });
 
     room.onMessage(EVT.chat, (e: ChatEvent) => this.showBubble(e));
-    room.onMessage(EVT.reaction, (e: ReactionEvent) => this.bubbles.get(e.bubbleId)?.addReaction(e.kind));
+    room.onMessage(EVT.reaction, (e: ReactionEvent) => {
+      this.bubbles.get(e.bubbleId)?.addReaction(e.kind);
+      // 「笑」を押した人は、その場で笑う
+      if (e.kind === "笑") this.avatars.get(e.from)?.playEmote("laugh");
+    });
     // AI店員が消した発言は、吹き出しがまだ出ていればすぐ消す
     room.onMessage(EVT.wipe, (e: WipeEvent) => this.bubbles.get(e.bubbleId)?.wipe());
 
@@ -152,7 +186,7 @@ export class IzakayaScene extends Phaser.Scene {
     const markers: EdgeMarker[] = [];
     for (const [id, a] of this.avatars) {
       if (id === room.sessionId) continue;
-      const p = this.worldToScreen(a.x, a.y - 20);
+      const p = this.worldToScreen(a.x, a.y - 30);
       const inside = p.x >= area.left && p.x <= area.right && p.y >= area.top && p.y <= area.bottom;
       if (inside) continue;
       // 札は画面の内側（端から少し内）に置く。左右にはみ出しているなら左右の札にする
@@ -200,7 +234,8 @@ export class IzakayaScene extends Phaser.Scene {
   /** 席に見えない当たり判定を置く。押すとそこへ歩いて座る */
   private addSeatSpots(room: IzakayaRoom) {
     for (const seat of SEATS) {
-      const spot = this.add.zone(seat.x, seat.y, 34, 34).setInteractive({ useHandCursor: true });
+      // 足元から座面のあたりまでを押せるようにする
+      const spot = this.add.zone(seat.x, seat.y - 12, 36, 44).setInteractive({ useHandCursor: true });
       spot.on("pointerdown", () => {
         closeReactionPicker();
         this.avatars.get(room.sessionId)?.walkTo(seat.x, seat.y);
@@ -212,7 +247,7 @@ export class IzakayaScene extends Phaser.Scene {
 
   /** 人数が変わったら：右上の人数、店の明るさ、音（main.ts が "guests" を聞いている） */
   private onGuestsChanged() {
-    // 店内人数はお客さん（人）だけ数える。AI常連は数えない
+    // 店内人数はお客さん（人）だけ数える。AI店員ゲンは数えない
     const count = [...this.avatars.values()].filter((a) => !a.ai).length;
     showGuests(count);
     this.game.events.emit("guests", count);
@@ -227,7 +262,8 @@ export class IzakayaScene extends Phaser.Scene {
 
   private applyBrightness(t: number) {
     const mix = (dim: number) => Math.round(dim + (0xff - dim) * t);
-    this.roomBg.setTint(Phaser.Display.Color.GetColor(mix(DIM_TINT.r), mix(DIM_TINT.g), mix(DIM_TINT.b)));
+    const tint = Phaser.Display.Color.GetColor(mix(DIM_TINT.r), mix(DIM_TINT.g), mix(DIM_TINT.b));
+    for (const image of this.roomBg) image.setTint(tint);
   }
 
   /** 提灯のまわりに、ゆらゆら揺れる暖かい光を重ねる（小さな画像なので軽い） */
@@ -243,18 +279,24 @@ export class IzakayaScene extends Phaser.Scene {
       ctx.fillRect(0, 0, size, size);
       canvas.refresh();
     }
-    for (const p of lanternPositions()) {
+    for (const p of LANTERN_SPOTS) {
+      // テーブルやカウンターの上の灯りは、手前に重ねた天板に隠れないよう、その上に光を出す
+      // （奥の席に座っている人にも、灯りが当たって見える）
+      const under = OCCLUDERS.find((o) => {
+        const [x1, y1, x2, y2] = o.src.map((v) => v * BG_SCALE);
+        return p.x >= x1 - 20 && p.x <= x2 + 20 && p.y >= y1 - 20 && p.y <= y2;
+      });
       const glow = this.add
         .image(p.x, p.y, "glow")
         .setTint(0xff9a3c)
         .setBlendMode(Phaser.BlendModes.ADD)
-        .setScale(1.3)
-        .setAlpha(0.35)
-        .setDepth(-990);
+        .setScale(0.8)
+        .setAlpha(0.25)
+        .setDepth(under ? under.depth + 1 : -990);
       this.tweens.add({
         targets: glow,
-        alpha: { from: 0.25, to: 0.45 },
-        scale: { from: 1.2, to: 1.35 },
+        alpha: { from: 0.15, to: 0.3 },
+        scale: { from: 0.75, to: 0.85 },
         duration: 900 + Math.random() * 900,
         yoyo: true,
         repeat: -1,
@@ -323,6 +365,7 @@ export class IzakayaScene extends Phaser.Scene {
       y: Math.round(a.y),
       tags: a.tags,
       seat: a.seat,
+      look: a.look,
     }));
   }
 
