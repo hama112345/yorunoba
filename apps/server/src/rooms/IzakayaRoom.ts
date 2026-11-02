@@ -43,12 +43,23 @@ import { SELF_SPEAKER, aiRegularSettings, getAiRegular } from "../npc/aiRegular.
 /** 出現位置どうしの最低距離（重なると、タップで別の人を選んでしまう） */
 const SPAWN_GAP = 44;
 
+/** 出現位置の候補の間隔（px）。入口の内側に格子状に並べ、順番を混ぜて空いている所を探す */
+const SPAWN_STEP = 22;
+
 /** 入口（のれん）の内側の、ほかの客と重ならない位置に出現させる */
 function entrancePosition(others: { x: number; y: number }[]) {
-  let best = clampToFloor(SPAWN_AREA.x + SPAWN_AREA.w / 2, SPAWN_AREA.y + SPAWN_AREA.h / 2);
+  const candidates: { x: number; y: number }[] = [];
+  for (let y = SPAWN_AREA.y; y <= SPAWN_AREA.y + SPAWN_AREA.h; y += SPAWN_STEP) {
+    for (let x = SPAWN_AREA.x; x <= SPAWN_AREA.x + SPAWN_AREA.w; x += SPAWN_STEP) candidates.push(clampToFloor(x, y));
+  }
+  // 毎回同じ所から埋まらないよう、順番を混ぜる
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  let best = candidates[0];
   let bestGap = -1;
-  for (let i = 0; i < 12; i++) {
-    const p = clampToFloor(SPAWN_AREA.x + Math.random() * SPAWN_AREA.w, SPAWN_AREA.y + Math.random() * SPAWN_AREA.h);
+  for (const p of candidates) {
     const gap = Math.min(Infinity, ...others.map((o) => Math.hypot(o.x - p.x, o.y - p.y)));
     if (gap >= SPAWN_GAP) return p;
     if (gap > bestGap) [best, bestGap] = [p, gap];
