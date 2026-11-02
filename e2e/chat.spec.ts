@@ -2,11 +2,16 @@ import { expect, test } from "@playwright/test";
 import { avatars, bringIntoView, bubbles, enter, isTappable, seats, sessionId, tapWorld, waitForEmptyShop } from "./helpers";
 
 test("吹き出しで話し、ワンタップで反応し、席に座れる", async ({ browser, request }, testInfo) => {
+  // 吹き出しが消える予定の時間を待つ確認があるので、ほかのテストより長めに待つ
+  test.setTimeout(90_000);
   await waitForEmptyShop(request);
   const ctxA = await browser.newContext(testInfo.project.use);
   const ctxB = await browser.newContext(testInfo.project.use);
   const alice = await ctxA.newPage();
   const bob = await ctxB.newPage();
+  // 画面のエラー（店の画面が止まる原因になる）を集めておき、最後に1つも無いことを確かめる
+  const errors: string[] = [];
+  for (const page of [alice, bob]) page.on("pageerror", (e) => errors.push(e.message));
   await enter(alice, "アリス", ["仕事終わり"]);
   await enter(bob, "ボブ", ["聞き専"]);
   await expect(bob.locator("#status")).toHaveText("いま店内 2人");
@@ -75,6 +80,20 @@ test("吹き出しで話し、ワンタップで反応し、席に座れる", as
   await expect.poll(async () => (await bubbles(alice)).length).toBe(2);
   await alice.screenshot({ path: testInfo.outputPath("alice-chat.png") });
   await bob.screenshot({ path: testInfo.outputPath("bob-view.png") });
+
+  // アリスが続けて話す（前の吹き出しは新しい吹き出しに置き換わる）。
+  // 置き換わった吹き出しの「消える予定」があとで来ても、店の画面が止まらない（以前は止まっていた）
+  await input.fill("もう一杯いきましょう");
+  await input.press("Enter");
+  await expect.poll(async () => (await bubbles(bob)).map((b) => b.text)).toContain("もう一杯いきましょう");
+  await bob.waitForTimeout(10_000); // 置き換わった吹き出しが消える予定の時間（反応で延びたぶんも）を過ぎるまで待つ
+  const bobNow = (await avatars(alice)).find((a) => a.id === bobId)!;
+  await bringIntoView(bob, bobNow.x, 245);
+  await tapWorld(bob, bobNow.x, 245); // ボブが席を立って奥の通路へ → アリスの画面でも動いて見える
+  await expect
+    .poll(async () => (await avatars(alice)).find((a) => a.id === bobId)?.y, { timeout: 15_000 })
+    .toBeLessThan(bobNow.y);
+  expect(errors).toEqual([]);
 
   await ctxA.close();
   await ctxB.close();

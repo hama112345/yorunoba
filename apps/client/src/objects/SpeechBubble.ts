@@ -115,7 +115,19 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
     const remaining = this.fadeTimer ? this.fadeTimer.getRemaining() : 0;
     this.fadeTimer?.remove();
     this.fadeTimer = this.scene.time.delayedCall(Math.max(ms, remaining), () => {
+      if (!this.scene) return; // もう消えている
       this.scene.tweens.add({ targets: this, alpha: 0, duration: 400, onComplete: () => this.destroy() });
     });
+  }
+
+  /**
+   * 消すときは、消える予定のタイマーも止める。
+   * 同じ人が続けて話す・帰るなどで吹き出しが先に消えると、残ったタイマーが消えた吹き出しを触ってエラーになり、
+   * 店の画面全体が止まっていた（2026-11 に修正）
+   */
+  destroy(fromScene?: boolean) {
+    this.fadeTimer?.remove();
+    this.fadeTimer = undefined;
+    super.destroy(fromScene);
   }
 }
