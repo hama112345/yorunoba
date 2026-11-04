@@ -1,0 +1,54 @@
+name: 公開（Render）
+
+# main に載ったら、公開中の店を新しい版に入れ替える。
+# - GitHub の Secret「RENDER_DEPLOY_HOOK」（Render の Deploy Hook のURL）があれば、それを呼んでデプロイを始める。
+# - 無ければ、Render の Auto-Deploy（On Commit）に任せて、入れ替わったかどうかだけを見る。
+# 公開中の店にテスト用の客は入れない（E2Eは「本番確認」を手動で流す）。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 続けて main を更新したら、古いほうの待ちはやめる
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+env:
+  PROD_URL: https://yorunoba.onrender.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Render にデプロイを頼む（Deploy Hook があるときだけ）
+        id: hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Secret RENDER_DEPLOY_HOOK が無いので、Render の Auto-Deploy に任せます（README の「公開する」を参照）"
+            echo "requested=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" -o /dev/null
+          echo "Render にデプロイを頼みました"
+          echo "requested=true" >> "$GITHUB_OUTPUT"
+      - name: 公開中の店が、このコミットの版に入れ替わるまで待つ（最大15分）
+        env:
+          REQUESTED: ${{ steps.hook.outputs.requested }}
+        run: |
+          for i in $(seq 1 90); do
+            version=$(curl -fsS --max-time 30 "$PROD_URL/healthz" | jq -r '.version // ""' || true)
+            echo "公開中の版: ${version:-（応答なし）} / 新しい版: $GITHUB_SHA"
+            if [ "$version" = "$GITHUB_SHA" ]; then
+              echo "公開中の店が新しい版になりました"
+              exit 0
+            fi
+            sleep 10
+          done
+          if [ "$REQUESTED" = "true" ]; then
+            echo "デプロイを頼みましたが、15分たっても新しい版になりませんでした。Render の「Events」でデプロイの成否を見てください。"
+            exit 1
+          fi
+          echo "::warning::公開中の店が新しい版になっていません。Render で「Manual Deploy」を押すか、README の手順で Deploy Hook を設定してください。"

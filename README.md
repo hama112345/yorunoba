@@ -30,7 +30,13 @@ GitHubのリポジトリが非公開でも公開でも、この手順で公開�
 3. リポジトリの一覧から `yorunoba` を選ぶ（出てこないときは、上の「先にやること」をやり直す）。
 4. `render.yaml` の内容（サービス名 `yorunoba`、無料プラン、`main` ブランチ）が表示されるので「Apply」を押す。
 5. 数分でビルドが終わると、`https://yorunoba.onrender.com` のようなURLが発行される。スマホでも開いて確認する。
-6. 以後は、`main` にpushするたびに自動で更新される。
+6. 以後は、`main` にpushするたびに自動で更新される（されないときは下の「自動で更新されないとき」）。
+
+### 自動で更新されないとき（main に載せても公開中の店が古いまま）
+どちらか一方をやれば、以後は `main` に載るたびに新しい版になる。GitHub Actions の「公開（Render）」が、公開中の店が入れ替わるまで見届ける（Actionsの画面で緑なら完了）。
+- **かんたん**：Renderのサービス →「Settings」→「Build & Deploy」→「Auto-Deploy」を **On Commit** にする。
+- **確実**：Renderのサービス →「Settings」→「Deploy Hook」のURLをコピーし、GitHubのリポジトリ →「Settings」→「Secrets and variables」→「Actions」→「New repository secret」で、名前 `RENDER_DEPLOY_HOOK`・値にそのURLを入れて保存する。
+  - このURLは合言葉と同じ扱い（知っている人は誰でもデプロイを始められる）。チャットやIssueには貼らない。
 
 > 「Deploy to Render」ボタン（`render.com/deploy?repo=…`）は公開リポジトリ専用の近道。これで作ったサービスは、あとでリポジトリを非公開にすると更新できなくなるので使わない。
 
