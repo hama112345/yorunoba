@@ -16,6 +16,7 @@ import { fetchStatus, joinIzakaya, loadProfile, saveProfile, staffToken } from "
 import { BootScene } from "./scenes/BootScene";
 import { IzakayaScene } from "./scenes/IzakayaScene";
 import { showChatBar } from "./ui/chatBar";
+import { showCheckout } from "./ui/checkout";
 import { showEntrance } from "./ui/entrance";
 import { showFirstVisitHint } from "./ui/firstVisit";
 import { showGuestCard } from "./ui/guestCard";
@@ -67,11 +68,18 @@ const game = new Phaser.Game({
 window.addEventListener("resize", () => game.scale.resize(window.innerWidth * DPR, window.innerHeight * DPR));
 
 const sceneReady = new Promise<IzakayaScene>((resolve) => game.events.once("izakaya-ready", resolve));
+// 店の様子（人数・営業時間・キープボトル）。入店画面と、酒棚の名札に使う
+const shopStatus = fetchStatus();
+let bottles: string[] = [];
+void Promise.all([sceneReady, shopStatus]).then(([scene, status]) => {
+  bottles = status?.bottles ?? [];
+  scene.showBottles(bottles);
+});
 
 showWaiting();
 showEntrance(
   loadProfile(),
-  fetchStatus(),
+  shopStatus,
   async (profile) => {
     // 音は「入店ボタンを押した瞬間」に用意しないと鳴らせない（ブラウザの決まり）ので、通信より先に作る
     const ambience = startAmbience();
@@ -83,16 +91,17 @@ showEntrance(
     scene.enterRoom(room);
     const joinedAt = Date.now();
 
-    // 退店（タブを閉じる・切断）で滞在時間を送る。一度だけ
+    // 退店で滞在時間を送る。一度だけ。via：お会計で出た（checkout）／タブを閉じた（close）／接続が切れた（lost）
     let left = false;
-    const sendLeft = (beacon: boolean) => {
+    const sendLeft = (beacon: boolean, via: "checkout" | "close" | "lost") => {
       if (left) return;
       left = true;
-      track("room_left", { seconds: Math.round((Date.now() - joinedAt) / 1000) }, beacon);
+      track("room_left", { seconds: Math.round((Date.now() - joinedAt) / 1000), via }, beacon);
     };
+    let checkedOut = false;
     // タブを閉じたときは、本人が出たことにする（接続が切れただけの人として30秒残らないように）
     window.addEventListener("pagehide", (e) => {
-      sendLeft(true);
+      sendLeft(true, "close");
       if (!e.persisted) void room.leave();
     });
 
@@ -154,8 +163,16 @@ showEntrance(
     // 右上の「常連パス（準備中）」と「誘う」
     const actions = document.getElementById("actions")!;
     actions.hidden = false;
-    document.getElementById("pass")!.addEventListener("click", () => showRegularsPass());
+    document.getElementById("pass")!.addEventListener("click", () => showRegularsPass(bottles));
     document.getElementById("invite")!.addEventListener("click", () => void invite((t) => chat.notice(t)));
+    // お会計：「また来たい？」を1問だけ聞いて店を出る
+    document.getElementById("checkout-button")!.addEventListener("click", () =>
+      showCheckout(() => {
+        checkedOut = true;
+        sendLeft(false, "checkout");
+        void room.leave();
+      }),
+    );
 
     // ほかの客をタップ → 名札カード（困ったときは通報）
     game.events.on("guest-tap", (sessionId: string) => {
@@ -190,10 +207,14 @@ showEntrance(
     });
     // 戻れなかった（お店の開け直しなど）ときは「もう一度入る」を出す
     room.onLeave(() => {
-      sendLeft(false);
+      sendLeft(false, "lost");
+      // 店を出たら、店の中の操作（右上のボタン・会話欄・案内）は片付ける
+      actions.hidden = true;
+      document.getElementById("chat")?.setAttribute("hidden", "");
+      document.getElementById("first-visit")?.remove();
       if (jailed) return;
       showError("店を出ました");
-      showGoodbye("lost");
+      showGoodbye(checkedOut ? "checkout" : "lost");
     });
     window.__yorunoba = {
       sessionId: room.sessionId,

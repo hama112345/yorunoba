@@ -18,7 +18,9 @@ export type EventName =
   | "waitlist_clicked"
   | "invite_clicked"
   | "toast_sent"
-  | "topic_viewed";
+  | "topic_viewed"
+  | "exit_survey"
+  | "keep_bottle_clicked";
 
 type Props = Record<string, string | number | boolean | null>;
 

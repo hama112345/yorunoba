@@ -36,6 +36,9 @@ test("常連パス（準備中）・友だちを誘う・計測に発言の本�
   const pass = page.getByRole("dialog", { name: /常連パス/ });
   await expect(pass).toBeVisible();
   await expect(pass).toContainText("480");
+  // キープボトルを入れてくれた人がいれば、カードに一覧が出る（棚の名札と同じ名前）
+  const { bottles } = (await (await request.get("/api/status")).json()) as { bottles: string[] };
+  if (bottles.length) await expect(pass).toContainText(`棚のキープボトル：${bottles.join("・")}`);
   await page.screenshot({ path: testInfo.outputPath("regulars-pass.png") });
   await pass.getByRole("button", { name: "480円ならアリ" }).click();
   await expect(pass.getByText("ありがとうございます")).toBeVisible();

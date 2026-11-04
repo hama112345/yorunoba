@@ -137,6 +137,25 @@ export interface ShopStatus {
   enforced: boolean;
   /** 次の開店時刻（UNIXミリ秒） */
   nextOpeningAt: number;
+  /** キープボトルを入れてくれた人の名前（店の棚に名札を掛ける。Renderの環境変数 KEEP_BOTTLES） */
+  bottles: string[];
+}
+
+/** 棚に掛けられるキープボトルの名札の数 */
+export const MAX_BOTTLES = 8;
+
+/**
+ * キープボトルの名前の一覧（「たろう,みさき」や「たろう、みさき」）を整える。
+ * 名前は入店時と同じルールで整え、空・重複を除いて、最大 MAX_BOTTLES 本
+ */
+export function parseBottles(raw: unknown): string[] {
+  if (typeof raw !== "string") return [];
+  const names = raw
+    .split(/[,、\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => sanitizeName(s));
+  return [...new Set(names)].slice(0, MAX_BOTTLES);
 }
 
 export interface MovePayload {

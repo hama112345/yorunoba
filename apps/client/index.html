@@ -456,6 +456,45 @@
       .modal .thanks[hidden] { display: none; }
       .modal .thanks { margin: 8px 0 0; font-size: 14px; color: #ffd27a; }
       .modal .later { margin: 10px 0 0; font-size: 13px; opacity: 0.8; }
+      /* キープボトル（常連パスのカードの中。VITE_KEEP_BOTTLE_URL があるときだけ） */
+      .modal .bottle {
+        margin: 12px 0 0;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 210, 122, 0.55);
+        background: rgba(255, 210, 122, 0.08);
+      }
+      .modal .bottle p { margin: 0; }
+      .modal .bottle-title b { font-size: 18px; color: #ffd27a; }
+      .modal .bottle-note { font-size: 12px; opacity: 0.85; margin-top: 4px !important; line-height: 1.5; }
+      .modal .bottle-buy {
+        display: block;
+        margin-top: 8px;
+        padding: 10px;
+        text-align: center;
+        font-weight: 700;
+        border-radius: 10px;
+        background: linear-gradient(#c0392b, #8e2a20);
+        color: #fff4e6;
+        text-decoration: none;
+      }
+      .modal .tokushoho { display: inline-block; margin-top: 6px; font-size: 11px; color: var(--text); opacity: 0.7; }
+      .modal .kept { margin: 10px 0 0; font-size: 13px; color: #ffe3a3; }
+      .modal .kept[hidden] { display: none; }
+      /* お会計（帰る前のひとこと） */
+      #checkout .lead { margin: 6px 0 0; font-size: 14px; }
+      #checkout .answers button { font-size: 15px; padding: 9px 13px; }
+      #checkout .skip {
+        display: block;
+        margin: 12px auto 0;
+        font-size: 13px;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        opacity: 0.75;
+        text-decoration: underline;
+        cursor: pointer;
+      }
       /* 店を出たあとの画面（お会計のあと・接続が切れたとき） */
       #goodbye .lead { margin: 8px 0 4px; line-height: 1.6; }
       #goodbye .hours { margin: 4px 0 0; font-size: 13px; opacity: 0.85; }
@@ -499,6 +538,7 @@
     <div id="actions" hidden>
       <button type="button" class="pill action" id="pass">🎫 常連パス</button>
       <button type="button" class="pill action" id="invite">📨 誘う</button>
+      <button type="button" class="pill action" id="checkout-button">🧾 お会計</button>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

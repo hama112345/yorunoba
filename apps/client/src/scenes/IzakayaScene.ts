@@ -1,6 +1,7 @@
 import { Callbacks } from "@colyseus/sdk";
 import {
   BG_SCALE,
+  BOTTLE_TAG_SPOTS,
   ENTRANCE,
   EVT,
   FLOOR,
@@ -51,8 +52,6 @@ export class IzakayaScene extends Phaser.Scene {
   /** 店の背景と、人より手前に重ねる部分（人数に応じて照明の色を変える） */
   private roomBg: Phaser.GameObjects.Image[] = [];
   private brightness = { t: 0 };
-  /** 入店した時刻（これより後に来た人だけ、入ってきたときに乾杯する） */
-  private enteredAt = 0;
   /** E2Eテスト用：見た乾杯の数 */
   private toastsSeen = 0;
 
@@ -108,8 +107,10 @@ export class IzakayaScene extends Phaser.Scene {
   enterRoom(room: IzakayaRoom) {
     this.room = room;
     this.game.loop.wake();
-    this.enteredAt = this.time.now;
     const callbacks = Callbacks.get(room);
+    // 入店したときに届く店内の一覧は、先にいた客 → 自分 の順に並んでいる。
+    // 自分より後に届いた客が「いま来た人」（乾杯して、会話欄に来店を出す）
+    let selfAdded = false;
     callbacks.onAdd("players", (player, sessionId) => {
       const isSelf = sessionId === room.sessionId;
       const tags = player.tags ? player.tags.split(",") : [];
@@ -126,12 +127,13 @@ export class IzakayaScene extends Phaser.Scene {
       if (player.ai) {
         // AI店員はカウンターの中にふわっと現れる
         avatar.fadeIn();
-      } else if (isSelf || this.time.now - this.enteredAt > 1500) {
+      } else if (isSelf || selfAdded) {
         // 入ってきた人（自分も）は、のれんをくぐったところで乾杯（手を振る）
         this.time.delayedCall(400, () => avatar.active && avatar.playEmote("cheer"));
         // ほかの客の会話欄に「来店」を出す（あいさつのきっかけ。main.ts が聞いている）
         if (!isSelf) this.game.events.emit("guest-arrived", player.name, tags);
       }
+      if (isSelf) selfAdded = true;
       avatar.on("tap", () => this.game.events.emit("guest-tap", sessionId));
       this.avatars.set(sessionId, avatar);
       // 自分の移動はタップ時に先に動かしているので、サーバーの値は他人のぶんだけ反映する
@@ -271,6 +273,33 @@ export class IzakayaScene extends Phaser.Scene {
         this.showTapMarker(seat.x, seat.y);
       });
     }
+  }
+
+  /**
+   * キープボトルの名札を酒棚の瓶に掛ける（縦書きの白い札。名前は4文字まで見せる）。
+   * 名前は Phaser の文字として描くので、HTMLとして解釈されることはない
+   */
+  showBottles(names: string[]) {
+    const tagDepth = 100; // カウンターの中の店員より奥
+    names.slice(0, BOTTLE_TAG_SPOTS.length).forEach((name, i) => {
+      const spot = BOTTLE_TAG_SPOTS[i];
+      const chars = Array.from(name);
+      const shown = chars.length > 4 ? [...chars.slice(0, 3), "…"] : chars;
+      this.add
+        .text(spot.x, spot.y, shown.join("\n"), {
+          resolution: TEXT_RESOLUTION,
+          fontFamily: "serif",
+          fontSize: "9px",
+          color: "#2a1912",
+          backgroundColor: "#f3ead8",
+          align: "center",
+          lineSpacing: -2,
+          padding: { x: 2, y: 2 },
+        })
+        .setOrigin(0.5, 0)
+        .setAngle(i % 2 ? 4 : -4) // 少し傾けて、手で掛けた札らしく
+        .setDepth(tagDepth);
+    });
   }
 
   /** 掲示板の上に「📋 今日のお題」の札をゆらゆら出す（押せることが分かるように） */

@@ -27,5 +27,7 @@ export default defineConfig({
         command: `PORT=${PORT} npm start`,
         url: `http://localhost:${PORT}/healthz`,
         reuseExistingServer: !process.env.CI,
+        // キープボトルの名札が棚とカードに出るかを確かめるため、2本入れておく
+        env: { KEEP_BOTTLES: "たろう,みさきちゃん" },
       },
 });

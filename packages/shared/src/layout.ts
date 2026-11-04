@@ -111,6 +111,12 @@ export const ENTRANCE: Rect = box(640, 780, 900, 900);
 /** 入ってきた客が最初に立つ範囲（のれんの内側） */
 export const SPAWN_AREA: Rect = box(500, 640, 1040, 714);
 
+/** キープボトルの名札を掛ける場所（奥の酒棚の大きな瓶の首。上の段→下の段の順） */
+export const BOTTLE_TAG_SPOTS: { x: number; y: number }[] = [
+  [535, 150], [580, 150], [625, 150], [690, 152], [740, 152],
+  [535, 104], [580, 104], [625, 104],
+].map(([x, y]) => ({ x: p(x), y: p(y) }));
+
 /** 右奥の掲示板（タップすると今日のお題を出す） */
 export const NOTICE_BOARD: Rect = box(1290, 165, 1490, 345);
 

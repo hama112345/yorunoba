@@ -9,12 +9,21 @@ export const WAITLIST_URL = (() => {
   return url && /^https:\/\//.test(url) ? url : undefined;
 })();
 
+/**
+ * キープボトル（500円、StripeのPayment Link）。URL（VITE_KEEP_BOTTLE_URL）があるときだけ出す。
+ * 本当にお金を払うか（H6'）を確かめる入口。買ってくれた人の名前は、店主が KEEP_BOTTLES に足すと棚に掛かる
+ */
+export const KEEP_BOTTLE_URL = (() => {
+  const url = import.meta.env.VITE_KEEP_BOTTLE_URL as string | undefined;
+  return url && /^https:\/\//.test(url) ? url : undefined;
+})();
+
 /** 「いくらなら払う？」の選択肢。押したものだけを数える（自由記述は取らない） */
 export const PRICE_ANSWERS = ["払わない", "〜300円", "480円ならアリ", "もっと払える"] as const;
 
 let current: HTMLElement | null = null;
 
-export function showRegularsPass() {
+export function showRegularsPass(bottles: string[] = []) {
   closeRegularsPass();
   track("paywall_clicked");
 
@@ -31,6 +40,17 @@ export function showRegularsPass() {
         <li>🎨 <b>名札の色・飾り</b>が増える</li>
         <li>🏮 お店の運営（見回り・サーバー代）を支える</li>
       </ul>
+      ${
+        KEEP_BOTTLE_URL
+          ? `<div class="bottle">
+        <p class="bottle-title">🍶 いま入れられます：キープボトル <b>500円</b></p>
+        <p class="bottle-note">お店の棚に、あなたの名前の札を掛けます（試験営業の期間中）。お支払いはStripeの画面で行います。</p>
+        <a class="bottle-buy" target="_blank" rel="noopener">キープボトルを入れる</a>
+        <a class="tokushoho" href="/tokushoho.html" target="_blank" rel="noopener">特定商取引法に基づく表記</a>
+      </div>`
+          : ""
+      }
+      <p class="kept" hidden></p>
       <p class="ask">正直なところ、いくらなら入りますか？</p>
       <div class="answers">
         ${PRICE_ANSWERS.map((a) => `<button type="button" data-answer="${a}">${a}</button>`).join("")}
@@ -48,6 +68,15 @@ export function showRegularsPass() {
   current = root;
 
   const thanks = root.querySelector<HTMLParagraphElement>(".thanks")!;
+  // 棚にいま掛かっている名札（名前は textContent で入れる）
+  const kept = root.querySelector<HTMLParagraphElement>(".kept")!;
+  if (bottles.length) {
+    kept.textContent = `🍶 棚のキープボトル：${bottles.join("・")}`;
+    kept.hidden = false;
+  }
+  const buy = root.querySelector<HTMLAnchorElement>(".bottle-buy");
+  if (buy && KEEP_BOTTLE_URL) buy.href = KEEP_BOTTLE_URL;
+  buy?.addEventListener("click", () => track("keep_bottle_clicked"));
   root.querySelector(".answers")!.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-answer]");
     if (!b) return;

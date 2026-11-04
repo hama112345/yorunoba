@@ -154,6 +154,18 @@ describe("IzakayaRoom", () => {
     await room.leave();
   });
 
+  it("lists the keep-bottle names from the environment, tidied", async () => {
+    process.env.KEEP_BOTTLES = "たろう,みさき、<b>けん</b>";
+    try {
+      const status = (await (await fetch(`http://localhost:${PORT}/api/status`)).json()) as ShopStatus;
+      expect(status.bottles).toEqual(["たろう", "みさき", "<b>けん</b>"]);
+    } finally {
+      delete process.env.KEEP_BOTTLES;
+    }
+    const empty = (await (await fetch(`http://localhost:${PORT}/api/status`)).json()) as ShopStatus;
+    expect(empty.bottles).toEqual([]);
+  });
+
   it("reports how many guests are drinking", async () => {
     const status = async () => (await (await fetch(`http://localhost:${PORT}/api/status`)).json()) as ShopStatus;
     expect(await status()).toMatchObject({ guests: 0, enforced: false });

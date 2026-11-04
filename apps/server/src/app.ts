@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { defineRoom, defineServer, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { ROOM_IZAKAYA, nextOpeningAt, shopPhase, type ShopStatus } from "@yorunoba/shared";
+import { ROOM_IZAKAYA, nextOpeningAt, parseBottles, shopPhase, type ShopStatus } from "@yorunoba/shared";
 import { hoursEnforced } from "./hours.js";
 import express from "express";
 import { IzakayaRoom } from "./rooms/IzakayaRoom.js";
@@ -32,6 +32,7 @@ export function createServer() {
           phase: shopPhase(),
           enforced: hoursEnforced(),
           nextOpeningAt: nextOpeningAt(),
+          bottles: parseBottles(process.env.KEEP_BOTTLES),
         };
         res.json(status);
       });

@@ -11,6 +11,8 @@ import {
   WALK_AREA,
   isWalkable,
   sanitizeLook,
+  MAX_BOTTLES,
+  parseBottles,
   TOPICS,
   TOPICS_PER_DAY,
   todaysTopics,
@@ -208,5 +210,15 @@ describe("todaysTopics", () => {
     const night = Date.UTC(2026, 10, 4, 13, 0);
     const nextNight = night + 86_400_000;
     expect(todaysTopics(nextNight)).not.toEqual(todaysTopics(night));
+  });
+});
+
+describe("parseBottles", () => {
+  it("reads names separated by commas, tidies them, and keeps at most MAX_BOTTLES", () => {
+    expect(parseBottles("たろう, みさき、けん\nたろう")).toEqual(["たろう", "みさき", "けん"]);
+    expect(parseBottles(" , ,")).toEqual([]);
+    expect(parseBottles(undefined)).toEqual([]);
+    expect(parseBottles("あ".repeat(40))).toEqual(["あ".repeat(NAME_MAX_LENGTH)]);
+    expect(parseBottles(Array.from({ length: 20 }, (_, i) => `客${i}`).join(","))).toHaveLength(MAX_BOTTLES);
   });
 });
