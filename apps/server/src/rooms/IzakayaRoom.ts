@@ -40,6 +40,7 @@ import { checkChat } from "../chat/rules.js";
 import { hoursAnnouncement, hoursEnforced } from "../hours.js";
 import { aiStaffSettings, getAiStaff, type FlagCategory, type ReviewLine } from "../moderation/aiStaff.js";
 import { ReportBook, jailList } from "../moderation/jail.js";
+import { countUp, recordJoin } from "../nightStats.js";
 import { notifyStaff } from "../moderation/notify.js";
 import { SELF_SPEAKER, aiRegularSettings, getAiRegular } from "../npc/aiRegular.js";
 
@@ -226,9 +227,15 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     });
 
     this.onMessage(MSG.chat, (client: Client, payload: { text?: unknown }) => {
-      if (!this.state.players.has(client.sessionId)) return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
       const text = sanitizeChat(payload?.text);
       if (!text) return;
+      // 店主は「/お知らせ ○○」「/お題」で店にお知らせを流せる（吹き出しにはしない）
+      if (player.staff && /^[/／]/.test(text)) {
+        this.staffCommand(client, text.slice(1).trim());
+        return;
+      }
       if (!this.chatLimiter.allow(client.sessionId)) {
         this.notice(client, "ちょっと早口です。ひと息ついてからどうぞ");
         return;
@@ -244,6 +251,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
       this.recentChats.push({ ...event, reactedBy: new Set() });
       if (this.recentChats.length > RECENT_CHAT_LIMIT) this.recentChats.shift();
       this.broadcast(EVT.chat, event);
+      countUp("chats");
       // 吹き出しはすぐに出し、AI店員はあとからまとめて見回る（会話を待たせない）
       if (getAiStaff()) this.patrolQueue.push({ id: event.id, from: client.sessionId, text });
       this.lastChatAt = Date.now();
@@ -260,12 +268,14 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
       bubble.reactedBy.add(key);
       const event: ReactionEvent = { bubbleId: bubble.id, from: client.sessionId, kind: payload.kind };
       this.broadcast(EVT.reaction, event);
+      countUp("reactions");
     });
 
     this.onMessage(MSG.toast, (client: Client) => {
       if (!this.state.players.has(client.sessionId) || !this.toastLimiter.allow(client.sessionId)) return;
       const event: ToastEvent = { from: client.sessionId };
       this.broadcast(EVT.toast, event);
+      countUp("toasts");
     });
 
     this.onMessage(MSG.report, (client: Client, payload: { target?: unknown }) => {
@@ -281,6 +291,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
         this.notice(client, `${target.name}さんを留置所へ送りました`);
         return;
       }
+      countUp("reports");
       const reporters = this.reportBook.add(targetId, client.sessionId);
       this.notice(client, "通報を受け付けました。ありがとうございます");
       void notifyStaff(`📣 通報：${target.name}（${reporters}人目）\n${this.recentLinesOf(targetId)}`);
@@ -302,6 +313,8 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     player.x = x;
     player.y = y;
     this.state.players.set(client.sessionId, player);
+    // 今夜のまとめ用に数える（端末IDがなければ、その入店だけを1人と数える）
+    recordJoin((client.auth as GuestAuth | undefined)?.deviceId ?? client.sessionId, this.clients.length);
   }
 
   /**
@@ -371,6 +384,29 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     } finally {
       this.patrolling = false;
     }
+  }
+
+  /**
+   * 店主の合図（会話欄に「/」で始めて書く）。
+   * - /お知らせ ○○：全員の会話欄に📢で流す（「21:30から乾杯タイム！」など）
+   * - /お題：今日のお題をすぐ1つ出す
+   */
+  private staffCommand(client: Client, command: string) {
+    const [name, ...rest] = command.split(/\s+/);
+    const body = rest.join(" ").trim();
+    if ((name === "お知らせ" || name === "announce") && body) {
+      const event: AnnounceEvent = { text: `店主より：${body}` };
+      this.broadcast(EVT.announce, event);
+      return;
+    }
+    if (name === "お題" || name === "topic") {
+      const topics = todaysTopics();
+      const event: TopicEvent = { text: topics[this.topicIndex++ % topics.length] };
+      this.broadcast(EVT.topic, event);
+      this.lastTopicAt = Date.now();
+      return;
+    }
+    this.notice(client, "店主の合図：「/お知らせ 伝えたいこと」「/お題」");
   }
 
   /**
@@ -507,6 +543,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     const name = this.state.players.get(client.sessionId)?.name ?? "だれか";
     void notifyStaff(`🚨 留置所へ：${name}（${reason}）\n${this.recentLinesOf(client.sessionId)}`);
     this.reportBook.forget(client.sessionId);
+    countUp("jailed");
     client.leave(4001);
   }
 

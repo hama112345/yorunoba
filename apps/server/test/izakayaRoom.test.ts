@@ -287,6 +287,45 @@ describe("IzakayaRoom", () => {
     }
   });
 
+  it("lets the owner post an announcement or a topic with a slash, but not ordinary guests", async () => {
+    process.env.ADMIN_TOKEN = "test-admin-token-123";
+    try {
+      const owner = await join("店主", undefined, { deviceId: device(), staffToken: "test-admin-token-123" });
+      const guest = await join("客", undefined, { deviceId: device() });
+      await waitFor(() => playerCount(guest) === 2);
+      const announces: string[] = [];
+      const topics: TopicEvent[] = [];
+      const chats: ChatEvent[] = [];
+      const notices: string[] = [];
+      guest.onMessage(EVT.announce, (e: { text: string }) => announces.push(e.text));
+      guest.onMessage(EVT.topic, (e: TopicEvent) => topics.push(e));
+      guest.onMessage(EVT.chat, (e: ChatEvent) => chats.push(e));
+      owner.onMessage(EVT.notice, (e: NoticeEvent) => notices.push(e.text));
+      owner.onMessage(EVT.chat, () => {});
+
+      owner.send(MSG.chat, { text: "/お知らせ 21:30から乾杯タイム！" });
+      await waitFor(() => announces.length === 1);
+      expect(announces[0]).toBe("店主より：21:30から乾杯タイム！");
+      owner.send(MSG.chat, { text: "／お題" });
+      await waitFor(() => topics.length === 1);
+      expect(todaysTopics()).toContain(topics[0].text);
+      owner.send(MSG.chat, { text: "/なにこれ" });
+      await waitFor(() => notices.length === 1);
+      expect(notices[0]).toContain("/お知らせ");
+      expect(chats).toHaveLength(0); // 合図は吹き出しにならない
+
+      // ふつうの客が書いても、ただの発言
+      guest.send(MSG.chat, { text: "/お知らせ ただいま無料" });
+      await waitFor(() => chats.length === 1);
+      expect(chats[0].text).toBe("/お知らせ ただいま無料");
+      expect(announces).toHaveLength(1);
+      await owner.leave();
+      await guest.leave();
+    } finally {
+      delete process.env.ADMIN_TOKEN;
+    }
+  });
+
   it("lets guests sit on a free seat only, and stand up by walking", async () => {
     const alice = await join("アリス");
     const bob = await join("ボブ");
