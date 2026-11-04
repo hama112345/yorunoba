@@ -11,7 +11,7 @@ env:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.56 は Ubuntu 26.04 に未対応（ubuntu-latest が26.04になったため固定）
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
