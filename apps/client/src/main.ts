@@ -17,7 +17,8 @@ import { IzakayaScene } from "./scenes/IzakayaScene";
 import { showChatBar } from "./ui/chatBar";
 import { showEntrance } from "./ui/entrance";
 import { showGuestCard } from "./ui/guestCard";
-import { showError, showWaiting } from "./ui/hud";
+import { showGoodbye } from "./ui/goodbye";
+import { showError, showReconnecting, showWaiting } from "./ui/hud";
 import { invite } from "./ui/invite";
 import { showJail } from "./ui/jail";
 import { showRegularsPass } from "./ui/regularsPass";
@@ -83,7 +84,11 @@ showEntrance(
       left = true;
       track("room_left", { seconds: Math.round((Date.now() - joinedAt) / 1000) }, beacon);
     };
-    window.addEventListener("pagehide", () => sendLeft(true));
+    // タブを閉じたときは、本人が出たことにする（接続が切れただけの人として30秒残らないように）
+    window.addEventListener("pagehide", (e) => {
+      sendLeft(true);
+      if (!e.persisted) void room.leave();
+    });
 
     // 画面下の会話欄。発言はサーバーを通して全員の吹き出しになる
     let chats = 0;
@@ -141,9 +146,22 @@ showEntrance(
       showJail(e.until, e.reason);
     });
 
+    // 電波が途切れた・アプリを切り替えたなどで接続が切れたら、自動でつなぎ直す（サーバーは30秒まで席を残す）
+    room.reconnection.maxRetries = 12;
+    room.onDrop(() => {
+      showReconnecting();
+      chat.notice("📶 接続が切れました。つなぎ直しています…");
+    });
+    room.onReconnect(() => {
+      scene.refreshGuests();
+      chat.notice("📶 つながりました");
+    });
+    // 戻れなかった（お店の開け直しなど）ときは「もう一度入る」を出す
     room.onLeave(() => {
       sendLeft(false);
-      if (!jailed) showError("お店から出ました。再読み込みで再入店できます");
+      if (jailed) return;
+      showError("店を出ました");
+      showGoodbye("lost");
     });
     window.__yorunoba = {
       sessionId: room.sessionId,

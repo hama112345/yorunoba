@@ -5,6 +5,13 @@ export const bubbles = (page: Page) => page.evaluate(() => window.__yorunoba?.bu
 export const seats = (page: Page) => page.evaluate(() => window.__yorunoba?.seats() ?? []);
 export const sessionId = (page: Page) => page.evaluate(() => window.__yorunoba?.sessionId ?? "");
 
+/** 画面のエラー（店の画面が止まる原因になる）を集める。テストの最後に空であることを確かめる */
+export function collectErrors(...pages: Page[]) {
+  const errors: string[] = [];
+  for (const page of pages) page.on("pageerror", (e) => errors.push(e.message));
+  return errors;
+}
+
 /** 店は1つを共有しているので、前のテストの客が帰りきってから始める（公開中の店では客のいない時間帯に流す） */
 export async function waitForEmptyShop(request: APIRequestContext) {
   await expect

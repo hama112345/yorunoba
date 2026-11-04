@@ -376,6 +376,23 @@
       .modal .thanks[hidden] { display: none; }
       .modal .thanks { margin: 8px 0 0; font-size: 14px; color: #ffd27a; }
       .modal .later { margin: 10px 0 0; font-size: 13px; opacity: 0.8; }
+      /* 店を出たあとの画面（お会計のあと・接続が切れたとき） */
+      #goodbye .lead { margin: 8px 0 4px; line-height: 1.6; }
+      #goodbye .hours { margin: 4px 0 0; font-size: 13px; opacity: 0.85; }
+      #goodbye .row { display: flex; gap: 8px; margin-top: 14px; }
+      #goodbye .row button {
+        flex: 1;
+        padding: 11px 8px;
+        font-size: 15px;
+        border-radius: 10px;
+        border: 1px solid rgba(246, 234, 219, 0.3);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+      #goodbye .row .again, #goodbye .row .primary { background: linear-gradient(#c0392b, #8e2a20); border: 0; color: #fff4e6; font-weight: 700; }
+      #goodbye .said { margin: 8px 0 0; font-size: 13px; color: #ffd27a; }
+      #goodbye .said[hidden] { display: none; }
       .modal .close {
         display: block;
         width: 100%;

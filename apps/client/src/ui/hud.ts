@@ -10,6 +10,12 @@ export function showGuests(count: number) {
   status().textContent = `いま店内 ${count}人`;
 }
 
+/** 接続が切れて、つなぎ直しているあいだ */
+export function showReconnecting() {
+  status().dataset.state = "error";
+  status().textContent = "📶 つなぎ直し中…";
+}
+
 export function showError(message: string) {
   status().dataset.state = "error";
   status().textContent = message;

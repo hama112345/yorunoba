@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { Room, ServerError, type AuthContext, type Client } from "@colyseus/core";
+import { CloseCode, Room, ServerError, type AuthContext, type Client } from "@colyseus/core";
 import {
   AI_REGULAR,
   AVATAR_COLORS,
@@ -39,6 +39,11 @@ import { aiStaffSettings, getAiStaff, type FlagCategory, type ReviewLine } from 
 import { ReportBook, jailList } from "../moderation/jail.js";
 import { notifyStaff } from "../moderation/notify.js";
 import { SELF_SPEAKER, aiRegularSettings, getAiRegular } from "../npc/aiRegular.js";
+
+/** 接続が切れた客が戻ってくるのを待つ時間（秒）。過ぎたら店から出たことにする */
+export const RECONNECT_SECONDS = 30;
+/** 電波が途切れたときの切れ方（このときだけ戻ってくるのを待つ）。オフラインになると画面側は MAY_TRY_RECONNECT で切る */
+const DROP_CODES: number[] = [CloseCode.NO_STATUS_RECEIVED, CloseCode.ABNORMAL_CLOSURE, CloseCode.MAY_TRY_RECONNECT];
 
 /** 出現位置どうしの最低距離（重なると、タップで別の人を選んでしまう） */
 const SPAWN_GAP = 44;
@@ -271,6 +276,18 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     player.x = x;
     player.y = y;
     this.state.players.set(client.sessionId, player);
+  }
+
+  /**
+   * 本人が出たのではなく接続が切れたとき（スマホでアプリを切り替えた・電波が途切れた）。
+   * しばらくは席と名前を残して、戻ってくるのを待つ（画面側は自動でつなぎ直す）。
+   * 戻ってこなければ、そのあと onLeave で後片付けする。
+   * 待つのは電波が途切れたときの切れ方だけ。タブを閉じた（1001）・留置所・閉店などは、すぐ店を出たことにする
+   * （幽霊のように30秒残ったり、留置所から入り直されたりしないように）
+   */
+  onDrop(client: Client, code?: number) {
+    if (code === undefined || !DROP_CODES.includes(code) || this.jailing.has(client.sessionId)) return;
+    this.allowReconnection(client, RECONNECT_SECONDS).catch(() => {});
   }
 
   onLeave(client: Client) {

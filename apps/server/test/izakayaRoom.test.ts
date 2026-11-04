@@ -1,3 +1,4 @@
+import { matchMaker } from "@colyseus/core";
 import { Callbacks, Client, type Room } from "@colyseus/sdk";
 import {
   AI_REGULAR,
@@ -183,6 +184,49 @@ describe("IzakayaRoom", () => {
     expect(heard.length).toBeLessThanOrEqual(3);
 
     await alice.leave();
+    await bob.leave();
+  });
+
+  it("keeps a dropped guest for a while, so they come back as themselves", async () => {
+    const alice = await join("アリス", ["サッカー"]);
+    const bob = await join("ボブ");
+    alice.reconnection.minUptime = 0; // テストでは入店直後でもつなぎ直す
+    await waitFor(() => playerCount(bob) === 2);
+    const seat = SEATS[5];
+    alice.send(MSG.sit, { seatId: seat.id });
+    await waitFor(() => playerOf(bob, alice.sessionId)?.seat === seat.id);
+
+    // 電波が途切れたのと同じ：本人の同意なく接続が切れる
+    const dropped = new Promise<void>((resolve) => alice.onDrop(() => resolve()));
+    const back = new Promise<void>((resolve) => alice.onReconnect(() => resolve()));
+    const serverRoom = matchMaker.getLocalRoomById(alice.roomId);
+    (serverRoom.clients.getById(alice.sessionId) as unknown as { ref: { terminate(): void } }).ref.terminate();
+    await dropped;
+    // つなぎ直しを待つあいだも、席と名前は残っている
+    expect(playerOf(bob, alice.sessionId)).toMatchObject({ name: "アリス", seat: seat.id, tags: "サッカー" });
+    await back;
+
+    // 戻ったあとも同じ客として話せる
+    const heard: ChatEvent[] = [];
+    bob.onMessage(EVT.chat, (e: ChatEvent) => heard.push(e));
+    alice.send(MSG.chat, { text: "ただいま" });
+    await waitFor(() => heard.some((h) => h.from === alice.sessionId && h.text === "ただいま"));
+    expect(playerCount(bob)).toBe(2);
+
+    await alice.leave();
+    await waitFor(() => playerCount(bob) === 1);
+    await bob.leave();
+  });
+
+  it("lets a guest who closed the tab leave at once (no ghost left behind)", async () => {
+    const alice = await join("アリス");
+    const bob = await join("ボブ");
+    await waitFor(() => playerCount(bob) === 2);
+    alice.reconnection.enabled = false;
+    // タブを閉じたときの「去ります」（1001）で接続が切れる
+    const serverRoom = matchMaker.getLocalRoomById(alice.roomId);
+    (serverRoom.clients.getById(alice.sessionId) as unknown as { ref: { close(code: number): void } }).ref.close(1001);
+    await waitFor(() => playerCount(bob) === 1);
     await bob.leave();
   });
 

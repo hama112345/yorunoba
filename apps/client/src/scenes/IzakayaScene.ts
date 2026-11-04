@@ -245,6 +245,11 @@ export class IzakayaScene extends Phaser.Scene {
     }
   }
 
+  /** 右上の人数を出し直す（つなぎ直したあと） */
+  refreshGuests() {
+    this.onGuestsChanged();
+  }
+
   /** 人数が変わったら：右上の人数、店の明るさ、音（main.ts が "guests" を聞いている） */
   private onGuestsChanged() {
     // 店内人数はお客さん（人）だけ数える。AI店員ゲンは数えない
