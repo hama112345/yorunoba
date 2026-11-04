@@ -16,7 +16,9 @@ export type EventName =
   | "paywall_clicked"
   | "paywall_answered"
   | "waitlist_clicked"
-  | "invite_clicked";
+  | "invite_clicked"
+  | "toast_sent"
+  | "topic_viewed";
 
 type Props = Record<string, string | number | boolean | null>;
 

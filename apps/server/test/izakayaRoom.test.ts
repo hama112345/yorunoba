@@ -20,10 +20,14 @@ import {
   type NoticeEvent,
   type ReactionEvent,
   type ShopStatus,
+  type ToastEvent,
+  type TopicEvent,
   type WipeEvent,
+  todaysTopics,
 } from "@yorunoba/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer } from "../src/app.js";
+import { topicSettings } from "../src/rooms/IzakayaRoom.js";
 import { aiStaffSettings, useAiStaff, type AiStaff, type ReviewLine } from "../src/moderation/aiStaff.js";
 import { SELF_SPEAKER, aiRegularSettings, useAiRegular, type AiRegular } from "../src/npc/aiRegular.js";
 
@@ -74,6 +78,8 @@ describe("IzakayaRoom", () => {
       greetDelayMs: 100,
       byeDelayMs: 200,
     });
+    // お題は基本出さない（静かになるまでの時間を長く）。使うテストだけ短くする
+    Object.assign(topicSettings, { tickMs: 50, quietMs: 60_000, gapMs: 60_000 });
     await server.listen(PORT);
   });
 
@@ -228,6 +234,45 @@ describe("IzakayaRoom", () => {
     (serverRoom.clients.getById(alice.sessionId) as unknown as { ref: { close(code: number): void } }).ref.close(1001);
     await waitFor(() => playerCount(bob) === 1);
     await bob.leave();
+  });
+
+  it("relays a toast to everyone, but not when someone mashes the button", async () => {
+    const alice = await join("アリス");
+    const bob = await join("ボブ");
+    await waitFor(() => playerCount(bob) === 2);
+    const toasts: ToastEvent[] = [];
+    bob.onMessage(EVT.toast, (e: ToastEvent) => toasts.push(e));
+    alice.send(MSG.toast);
+    alice.send(MSG.toast); // 連打（8秒に1回まで）
+    alice.send(MSG.toast);
+    await waitFor(() => toasts.length >= 1);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(toasts).toEqual([{ from: alice.sessionId }]);
+    await alice.leave();
+    await bob.leave();
+  });
+
+  it("puts up a topic when guests are there but nobody talks, not too often", async () => {
+    Object.assign(topicSettings, { quietMs: 300, gapMs: 1_500 });
+    try {
+      const alice = await join("アリス");
+      const topics: TopicEvent[] = [];
+      alice.onMessage(EVT.topic, (e: TopicEvent) => topics.push(e));
+      // 1人のときは出さない（話す相手がいない）
+      await new Promise((r) => setTimeout(r, 500));
+      expect(topics).toHaveLength(0);
+
+      const bob = await join("ボブ");
+      await waitFor(() => topics.length === 1, 2_000);
+      expect(todaysTopics()).toContain(topics[0].text);
+      // 続けては出さない
+      await new Promise((r) => setTimeout(r, 600));
+      expect(topics).toHaveLength(1);
+      await alice.leave();
+      await bob.leave();
+    } finally {
+      Object.assign(topicSettings, { quietMs: 60_000, gapMs: 60_000 });
+    }
   });
 
   it("lets guests sit on a free seat only, and stand up by walking", async () => {

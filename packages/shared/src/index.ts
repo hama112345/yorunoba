@@ -21,6 +21,8 @@ export const MSG = {
   sit: "sit",
   react: "react",
   report: "report",
+  /** 🍻 乾杯（その場で乾杯の動き。全員に見える） */
+  toast: "toast",
 } as const;
 
 /** サーバー→クライアントのお知らせ（状態として残さず、その場で流すもの） */
@@ -37,7 +39,20 @@ export const EVT = {
   announce: "announce",
   /** AI店員が問題のある発言を全員の画面から消す（「店員がおしぼりで拭きました」） */
   wipe: "wipe",
+  /** 誰かが🍻乾杯した */
+  toast: "toast",
+  /** 店が静かなときに出すお題（会話欄に📋で出す） */
+  topic: "topic",
 } as const;
+
+export interface ToastEvent {
+  /** 乾杯した人の sessionId */
+  from: string;
+}
+
+export interface TopicEvent {
+  text: string;
+}
 
 export interface AnnounceEvent {
   text: string;
@@ -182,6 +197,7 @@ export function sanitizeLook(raw: unknown): Look {
 export * from "./layout";
 export { IzakayaState, Player } from "./schema";
 export * from "./hours";
+export * from "./topics";
 
 /**
  * AI店員「ゲン」（コードの中では AI_REGULAR と呼ぶ。最初は常連客の役だった）。

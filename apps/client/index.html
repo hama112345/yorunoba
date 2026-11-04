@@ -211,7 +211,87 @@
         background: linear-gradient(#c0392b, #8e2a20);
         color: #fff4e6;
       }
+      /* 🍻 乾杯ボタン（入力欄の左。押しやすい大きさ） */
+      #chat .bar button.toast {
+        padding: 0 10px;
+        font-size: 20px;
+        background: rgba(255, 210, 122, 0.16);
+        border: 1px solid rgba(255, 210, 122, 0.5);
+      }
+      #chat .bar button.toast:disabled { opacity: 0.45; }
+      #chat .log li.topic { background: rgba(41, 51, 92, 0.9); color: #f6eadb; }
+      #chat .log li.system { background: rgba(20, 14, 26, 0.55); color: #ffe3a3; font-size: 13px; }
       @keyframes chat-in { from { opacity: 0; transform: translateY(4px); } }
+
+      /* 今日のお題（掲示板） */
+      #topics .lead { margin: 6px 0 10px; font-size: 13px; opacity: 0.85; }
+      #topics .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+      #topics .list button {
+        width: 100%;
+        text-align: left;
+        font-size: 15px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 210, 122, 0.45);
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      /* はじめての人への案内（会話欄の上） */
+      #first-visit {
+        position: fixed;
+        left: 50%;
+        bottom: calc(150px + env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        width: min(360px, calc(100% - 24px));
+        background: rgba(20, 14, 26, 0.92);
+        border: 1px solid rgba(255, 210, 122, 0.6);
+        border-radius: 14px;
+        padding: 10px 14px 10px;
+        font-size: 13px;
+        line-height: 1.6;
+        z-index: 6;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        pointer-events: none; /* 案内の下の店もそのままタップできる（×だけ押せる） */
+      }
+      #first-visit .title { margin: 0 0 4px; font-weight: 700; color: #ffd27a; }
+      #first-visit ul { margin: 0; padding-left: 1.2em; }
+      #first-visit .x {
+        position: absolute;
+        top: 4px;
+        right: 6px;
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        pointer-events: auto;
+      }
+
+      /* 2人以上が続けて乾杯したときの「かんぱーい！」 */
+      #kanpai {
+        position: fixed;
+        left: 50%;
+        top: 30%;
+        transform: translate(-50%, -50%);
+        font-size: clamp(30px, 9vw, 56px);
+        font-weight: 800;
+        white-space: nowrap;
+        color: #ffd27a;
+        text-shadow: 0 3px 0 #8e2a20, 0 0 18px rgba(255, 154, 60, 0.8);
+        pointer-events: none;
+        z-index: 20;
+        animation: kanpai 1.6s ease-out forwards;
+      }
+      @keyframes kanpai {
+        0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+        15% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+        70% { opacity: 1; transform: translate(-50%, -55%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
+      }
 
       #entrance .terms { font-size: 12px; line-height: 1.6; opacity: 0.75; margin: 10px 0 0; }
       #entrance .terms a { color: var(--accent); }

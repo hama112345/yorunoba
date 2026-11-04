@@ -5,6 +5,7 @@ import {
   type ChatEvent,
   type JailedEvent,
   type NoticeEvent,
+  type TopicEvent,
   type WipeEvent,
 } from "@yorunoba/shared";
 import Phaser from "phaser";
@@ -16,12 +17,15 @@ import { BootScene } from "./scenes/BootScene";
 import { IzakayaScene } from "./scenes/IzakayaScene";
 import { showChatBar } from "./ui/chatBar";
 import { showEntrance } from "./ui/entrance";
+import { showFirstVisitHint } from "./ui/firstVisit";
 import { showGuestCard } from "./ui/guestCard";
 import { showGoodbye } from "./ui/goodbye";
 import { showError, showReconnecting, showWaiting } from "./ui/hud";
 import { invite } from "./ui/invite";
 import { showJail } from "./ui/jail";
+import { createKanpaiDetector } from "./ui/kanpai";
 import { showRegularsPass } from "./ui/regularsPass";
+import { showTopicsCard } from "./ui/topics";
 
 declare global {
   interface Window {
@@ -29,6 +33,8 @@ declare global {
     __yorunoba?: {
       sessionId: string;
       avatars: () => { id: string; x: number; y: number; tags: string[]; seat: string; look: string }[];
+      /** 見た乾杯の数 */
+      toasts: () => number;
       bubbles: () => { id: number; text: string; x: number; y: number; alpha: number; reactions: Record<string, number> }[];
       seats: () => { id: string; x: number; y: number; free: boolean; onScreen: boolean }[];
       isSelfOnScreen: () => boolean;
@@ -92,12 +98,19 @@ showEntrance(
 
     // 画面下の会話欄。発言はサーバーを通して全員の吹き出しになる
     let chats = 0;
-    const chat = showChatBar((text) => {
-      room.send(MSG.chat, { text });
-      chats += 1;
-      // 計測は文字数だけ（本文は送らない）
-      track("chat_sent", { length: [...text].length, nth: chats });
-    });
+    const chat = showChatBar(
+      (text) => {
+        room.send(MSG.chat, { text });
+        chats += 1;
+        // 計測は文字数だけ（本文は送らない）
+        track("chat_sent", { length: [...text].length, nth: chats });
+      },
+      () => {
+        room.send(MSG.toast);
+        track("toast_sent");
+      },
+    );
+    showFirstVisitHint();
     room.onMessage(EVT.chat, (e: ChatEvent) => {
       const speaker = room.state.players.get(e.from);
       const name = speaker ? (speaker.ai ? `🤖${speaker.name}` : speaker.name) : "だれか";
@@ -118,6 +131,25 @@ showEntrance(
     room.onMessage(EVT.notice, (e: NoticeEvent) => chat.notice(e.text));
     room.onMessage(EVT.announce, (e: AnnounceEvent) => chat.announce(e.text));
     room.onMessage(EVT.wipe, (e: WipeEvent) => chat.wipe(e.bubbleId));
+    room.onMessage(EVT.topic, (e: TopicEvent) => chat.topic(e.text));
+
+    // 🍻 乾杯：グラスの音。8秒以内に2人以上なら「かんぱーい！」
+    const kanpai = createKanpaiDetector();
+    game.events.on("toast", (from: string) => {
+      ambience.toast();
+      kanpai(from);
+    });
+    // 来店・お帰りを会話欄に（あいさつのきっかけ。保存はしない）
+    game.events.on("guest-arrived", (name: string, tags: string[]) => {
+      const tagText = tags.length ? `（${tags.map((t) => `#${t}`).join(" ")}）` : "";
+      chat.system(`🏮 ${name}さん${tagText}が来店`);
+    });
+    game.events.on("guest-left", (name: string) => chat.system(`${name}さんがお帰りになりました`));
+    // 掲示板 → 今日のお題。選んだお題は会話欄に入る
+    game.events.on("board-tap", () => {
+      track("topic_viewed");
+      showTopicsCard((topic) => chat.fill(topic));
+    });
 
     // 右上の「常連パス（準備中）」と「誘う」
     const actions = document.getElementById("actions")!;
@@ -166,6 +198,7 @@ showEntrance(
     window.__yorunoba = {
       sessionId: room.sessionId,
       avatars: () => scene.snapshot(),
+      toasts: () => scene.toastCount(),
       bubbles: () => scene.bubbleSnapshot(),
       seats: () => scene.seatSnapshot(),
       isSelfOnScreen: () => scene.isSelfOnScreen(),

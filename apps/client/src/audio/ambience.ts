@@ -6,6 +6,8 @@ const MUTE_KEY = "yorunoba:muted";
 export interface Ambience {
   setGuests(count: number): void;
   pop(): void;
+  /** 🍻 乾杯の「カチン」（グラスを2つ合わせる音） */
+  toast(): void;
   toggleMute(): boolean;
   readonly muted: boolean;
 }
@@ -22,7 +24,9 @@ function loadMuted(): boolean {
 export function startAmbience(): Ambience {
   const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   let muted = loadMuted();
-  if (!AudioCtx) return { setGuests() {}, pop() {}, toggleMute: () => (muted = !muted), get muted() { return muted; } };
+  if (!AudioCtx) {
+    return { setGuests() {}, pop() {}, toast() {}, toggleMute: () => (muted = !muted), get muted() { return muted; } };
+  }
 
   const ctx = new AudioCtx();
   const master = ctx.createGain();
@@ -61,14 +65,14 @@ export function startAmbience(): Ambience {
   let guests = 1;
   let clinkTimer: number | undefined;
 
-  const clink = () => {
-    const t = ctx.currentTime;
+  const clink = (delay = 0, volume = 0.05) => {
+    const t = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
     const env = ctx.createGain();
     osc.type = "sine";
     osc.frequency.value = 2400 + Math.random() * 1600;
     env.gain.setValueAtTime(0.0001, t);
-    env.gain.exponentialRampToValueAtTime(0.05, t + 0.005);
+    env.gain.exponentialRampToValueAtTime(volume, t + 0.005);
     env.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
     osc.connect(env).connect(master);
     osc.start(t);
@@ -105,6 +109,12 @@ export function startAmbience(): Ambience {
       applyGuests();
       window.clearTimeout(clinkTimer);
       scheduleClink();
+    },
+    toast() {
+      if (muted) return;
+      // 近くで2つのグラスが当たる音（少しずらして重ねる）
+      clink(0, 0.09);
+      clink(0.05, 0.07);
     },
     pop() {
       if (muted) return;

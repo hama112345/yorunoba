@@ -23,6 +23,7 @@ import {
   sanitizeName,
   sanitizeTags,
   shopPhase,
+  todaysTopics,
   type AnnounceEvent,
   type ChatEvent,
   type JailedEvent,
@@ -30,6 +31,8 @@ import {
   type MovePayload,
   type NoticeEvent,
   type ReactionEvent,
+  type ToastEvent,
+  type TopicEvent,
   type WipeEvent,
 } from "@yorunoba/shared";
 import { RateLimiter } from "../chat/rateLimit.js";
@@ -39,6 +42,16 @@ import { aiStaffSettings, getAiStaff, type FlagCategory, type ReviewLine } from 
 import { ReportBook, jailList } from "../moderation/jail.js";
 import { notifyStaff } from "../moderation/notify.js";
 import { SELF_SPEAKER, aiRegularSettings, getAiRegular } from "../npc/aiRegular.js";
+
+/** お題を出す間隔など。テストでは短くする */
+export const topicSettings = {
+  /** 店の様子を見る間隔 */
+  tickMs: 15_000,
+  /** 客が2人以上いて、これだけ誰も話していなければお題を出す */
+  quietMs: 180_000,
+  /** 続けて出さない間隔（お題ばかりにならないように） */
+  gapMs: 600_000,
+};
 
 /** 接続が切れた客が戻ってくるのを待つ時間（秒）。過ぎたら店から出たことにする */
 export const RECONNECT_SECONDS = 30;
@@ -135,6 +148,11 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
   private chatLimiter = new RateLimiter(3, 1000);
   /** 反応：5回までは続けて、その後は0.5秒に1回 */
   private reactionLimiter = new RateLimiter(5, 500);
+  /** 乾杯：8秒に1回まで（連打で画面を埋めないように） */
+  private toastLimiter = new RateLimiter(1, 8_000);
+  /** お題を最後に出した時刻と、今日のお題の何番目まで出したか */
+  private lastTopicAt = 0;
+  private topicIndex = 0;
   /** 通報：同じ人が連打しないように */
   private reportLimiter = new RateLimiter(3, 10_000);
   private reportBook = new ReportBook(REPORT_WINDOW_MS);
@@ -181,6 +199,8 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     this.clock.setInterval(() => void this.patrol(), aiStaffSettings.patrolMs);
     // AI店員ゲンの出入り（客が少ないときだけ現れる。APIキーが無いときは現れない）
     this.clock.setInterval(() => this.regularTick(), aiRegularSettings.tickMs);
+    // 静かなときのお題（AIなしで動く）
+    this.clock.setInterval(() => this.topicTick(), topicSettings.tickMs);
 
     this.onMessage(MSG.move, (client: Client, payload: Partial<MovePayload>) => {
       const player = this.state.players.get(client.sessionId);
@@ -242,6 +262,12 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
       this.broadcast(EVT.reaction, event);
     });
 
+    this.onMessage(MSG.toast, (client: Client) => {
+      if (!this.state.players.has(client.sessionId) || !this.toastLimiter.allow(client.sessionId)) return;
+      const event: ToastEvent = { from: client.sessionId };
+      this.broadcast(EVT.toast, event);
+    });
+
     this.onMessage(MSG.report, (client: Client, payload: { target?: unknown }) => {
       const reporter = this.state.players.get(client.sessionId);
       const targetId = typeof payload?.target === "string" ? payload.target : "";
@@ -295,6 +321,7 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     this.state.players.delete(client.sessionId);
     this.chatLimiter.forget(client.sessionId);
     this.reactionLimiter.forget(client.sessionId);
+    this.toastLimiter.forget(client.sessionId);
     this.strikes.delete(client.sessionId);
     this.patrolQueue = this.patrolQueue.filter((q) => q.from !== client.sessionId);
     this.jailing.delete(client.sessionId);
@@ -344,6 +371,19 @@ export class IzakayaRoom extends Room<{ state: IzakayaState }> {
     } finally {
       this.patrolling = false;
     }
+  }
+
+  /**
+   * 客が2人以上いるのに静かなとき、会話欄にお題を出す（話すきっかけ。AIなしで動く）。
+   * ゲンがいるとき（客が1〜2人）は、ゲンが話を振るので出さない
+   */
+  private topicTick(now = Date.now()) {
+    if (this.clients.length < 2 || this.regular) return;
+    if (now - this.lastChatAt < topicSettings.quietMs || now - this.lastTopicAt < topicSettings.gapMs) return;
+    const topics = todaysTopics(now);
+    const event: TopicEvent = { text: topics[this.topicIndex++ % topics.length] };
+    this.broadcast(EVT.topic, event);
+    this.lastTopicAt = now;
   }
 
   /** AI店員ゲンの出入りと、静かなときの話題振り（定期的に呼ぶ） */

@@ -11,6 +11,9 @@ import {
   WALK_AREA,
   isWalkable,
   sanitizeLook,
+  TOPICS,
+  TOPICS_PER_DAY,
+  todaysTopics,
   walkPath,
   NAME_MAX_LENGTH,
   clampToFloor,
@@ -189,5 +192,21 @@ describe("reactions and seats", () => {
     expect(findSeat("counter-1")).toBeDefined();
     expect(findSeat("nope")).toBeUndefined();
     expect(new Set(SEATS.map((s) => s.id)).size).toBe(SEATS.length);
+  });
+});
+
+describe("todaysTopics", () => {
+  it("gives everyone the same topics for the same night, without duplicates", () => {
+    const night = Date.UTC(2026, 10, 4, 13, 0); // 日本時間 22:00
+    const afterMidnight = Date.UTC(2026, 10, 4, 16, 30); // 日本時間 翌1:30（同じ夜）
+    expect(todaysTopics(night)).toEqual(todaysTopics(afterMidnight));
+    expect(new Set(todaysTopics(night)).size).toBe(TOPICS_PER_DAY);
+    for (const t of todaysTopics(night)) expect(TOPICS).toContain(t);
+  });
+
+  it("changes topics from one night to the next", () => {
+    const night = Date.UTC(2026, 10, 4, 13, 0);
+    const nextNight = night + 86_400_000;
+    expect(todaysTopics(nextNight)).not.toEqual(todaysTopics(night));
   });
 });

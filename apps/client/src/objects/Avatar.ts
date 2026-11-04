@@ -19,6 +19,8 @@ const SITTING_HEIGHT = 52;
 const LABEL_GAP = 4;
 /** ときどき飲む間隔（ミリ秒。最小〜最大）。じっとしているだけより、店の空気が出る */
 const DRINK_EVERY: [number, number] = [25_000, 50_000];
+/** 頭の上に浮かべる絵文字の重なり順（吹き出しより手前） */
+const POP_DEPTH = 10_010;
 
 export interface AvatarOptions {
   name: string;
@@ -164,6 +166,39 @@ export class Avatar extends Phaser.GameObjects.Container {
     this.sprite.play(key);
     this.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE_KEY + key, () => {
       if (this.emote === anim) this.emote = undefined;
+    });
+  }
+
+  /** 🍻 乾杯：立っていればジョッキを掲げる（手を振る）、座っていれば座って飲む。頭の上に🍻も出す */
+  toast() {
+    if (this.seatHere()) this.playEmote("drink");
+    else this.playEmote("cheer");
+    this.pop("🍻");
+  }
+
+  /**
+   * 頭の上に小さな文字（絵文字）を浮かべて消す。反応・乾杯をしたことが、絵の動きが無いキャラや座っている人でも伝わるように。
+   * 名札などと違ってテーブルの天板に隠れないよう、アバターの外に作って一番手前に出す
+   */
+  pop(text: string) {
+    const label = this.scene.add
+      .text(this.x, this.y + this.label.y - 18, text, {
+        resolution: TEXT_RESOLUTION,
+        fontFamily: "sans-serif",
+        fontSize: "18px",
+        color: "#ffd27a",
+        stroke: "#1a1220",
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(POP_DEPTH);
+    this.scene.tweens.add({
+      targets: label,
+      y: label.y - 28,
+      alpha: { from: 1, to: 0 },
+      duration: 1_400,
+      ease: "Sine.Out",
+      onComplete: () => label.destroy(),
     });
   }
 

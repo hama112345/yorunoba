@@ -6,17 +6,20 @@ import {
   FLOOR,
   LANTERN_SPOTS,
   MSG,
+  NOTICE_BOARD,
   OCCLUDERS,
   SEATS,
   clampToFloor,
   type ChatEvent,
+  type Reaction,
   type ReactionEvent,
+  type ToastEvent,
   type WipeEvent,
 } from "@yorunoba/shared";
 import Phaser from "phaser";
 import { track } from "../analytics";
 import { ASSETS } from "../assets";
-import { DPR } from "../display";
+import { DPR, TEXT_RESOLUTION } from "../display";
 import type { IzakayaRoom } from "../net/connection";
 import { Avatar } from "../objects/Avatar";
 import { drawIzakaya } from "../objects/izakayaDecor";
@@ -37,6 +40,8 @@ const HUD_SPACE = 96;
 /** 店の明るさ：1人だと少し落ち着いた灯り、10人以上で一番明るい（賑わいが目で分かるように） */
 const DIM_TINT = { r: 0xc4, g: 0xb2, b: 0xb0 };
 const FULL_GUESTS = 10;
+/** ワンタップ反応を押した人の頭上に浮かべる絵文字 */
+const REACTION_EMOJI: Record<Reaction, string> = { わかる: "👍", 笑: "😆", へぇ: "💡" };
 
 export class IzakayaScene extends Phaser.Scene {
   private room?: IzakayaRoom;
@@ -48,6 +53,8 @@ export class IzakayaScene extends Phaser.Scene {
   private brightness = { t: 0 };
   /** 入店した時刻（これより後に来た人だけ、入ってきたときに乾杯する） */
   private enteredAt = 0;
+  /** E2Eテスト用：見た乾杯の数 */
+  private toastsSeen = 0;
 
   constructor() {
     super("izakaya");
@@ -68,6 +75,7 @@ export class IzakayaScene extends Phaser.Scene {
       this.roomBg.push(drawIzakaya(this));
     }
     this.addLanternGlows();
+    this.addNoticeBoardSign();
     this.applyBrightness(0);
 
     this.layoutCamera();
@@ -121,6 +129,8 @@ export class IzakayaScene extends Phaser.Scene {
       } else if (isSelf || this.time.now - this.enteredAt > 1500) {
         // 入ってきた人（自分も）は、のれんをくぐったところで乾杯（手を振る）
         this.time.delayedCall(400, () => avatar.active && avatar.playEmote("cheer"));
+        // ほかの客の会話欄に「来店」を出す（あいさつのきっかけ。main.ts が聞いている）
+        if (!isSelf) this.game.events.emit("guest-arrived", player.name, tags);
       }
       avatar.on("tap", () => this.game.events.emit("guest-tap", sessionId));
       this.avatars.set(sessionId, avatar);
@@ -137,7 +147,9 @@ export class IzakayaScene extends Phaser.Scene {
       this.onGuestsChanged();
     });
     callbacks.onRemove("players", (_player, sessionId) => {
-      this.avatars.get(sessionId)?.destroy();
+      const leaving = this.avatars.get(sessionId);
+      if (leaving && !leaving.ai && sessionId !== room.sessionId) this.game.events.emit("guest-left", leaving.guestName);
+      leaving?.destroy();
       this.avatars.delete(sessionId);
       this.onGuestsChanged();
     });
@@ -145,13 +157,29 @@ export class IzakayaScene extends Phaser.Scene {
     room.onMessage(EVT.chat, (e: ChatEvent) => this.showBubble(e));
     room.onMessage(EVT.reaction, (e: ReactionEvent) => {
       this.bubbles.get(e.bubbleId)?.addReaction(e.kind);
-      // 「笑」を押した人は、その場で笑う
-      if (e.kind === "笑") this.avatars.get(e.from)?.playEmote("laugh");
+      // 押した人の頭上に絵文字を出す。「笑」はその場で笑う
+      const reactor = this.avatars.get(e.from);
+      reactor?.pop(REACTION_EMOJI[e.kind]);
+      if (e.kind === "笑") reactor?.playEmote("laugh");
+    });
+    room.onMessage(EVT.toast, (e: ToastEvent) => {
+      this.toastsSeen += 1;
+      this.avatars.get(e.from)?.toast();
+      // 音と「かんぱーい！」の演出は main.ts で
+      this.game.events.emit("toast", e.from);
     });
     // AI店員が消した発言は、吹き出しがまだ出ていればすぐ消す
     room.onMessage(EVT.wipe, (e: WipeEvent) => this.bubbles.get(e.bubbleId)?.wipe());
 
     this.addSeatSpots(room);
+    // 右奥の掲示板を押すと、今日のお題（main.ts がカードを出す）
+    const board = this.add
+      .zone(NOTICE_BOARD.x + NOTICE_BOARD.w / 2, NOTICE_BOARD.y + NOTICE_BOARD.h / 2, NOTICE_BOARD.w, NOTICE_BOARD.h)
+      .setInteractive({ useHandCursor: true });
+    board.on("pointerdown", () => {
+      closeReactionPicker();
+      this.game.events.emit("board-tap");
+    });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       // 吹き出し・席・ほかの客を押したときは歩かない（それぞれの処理が先に動いている。
@@ -243,6 +271,22 @@ export class IzakayaScene extends Phaser.Scene {
         this.showTapMarker(seat.x, seat.y);
       });
     }
+  }
+
+  /** 掲示板の上に「📋 今日のお題」の札をゆらゆら出す（押せることが分かるように） */
+  private addNoticeBoardSign() {
+    const sign = this.add
+      .text(NOTICE_BOARD.x + NOTICE_BOARD.w / 2, NOTICE_BOARD.y + 6, "📋 今日のお題", {
+        resolution: TEXT_RESOLUTION,
+        fontFamily: "sans-serif",
+        fontSize: "12px",
+        color: "#1a1220",
+        backgroundColor: "#ffd27a",
+        padding: { x: 6, y: 2 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(NOTICE_BOARD.y + NOTICE_BOARD.h);
+    this.tweens.add({ targets: sign, y: sign.y - 4, duration: 1_200, yoyo: true, repeat: -1, ease: "Sine.InOut" });
   }
 
   /** 右上の人数を出し直す（つなぎ直したあと） */
@@ -384,6 +428,11 @@ export class IzakayaScene extends Phaser.Scene {
       alpha: b.alpha,
       reactions: b.reactionCounts(),
     }));
+  }
+
+  /** E2Eテスト用に、見た乾杯の数を返す */
+  toastCount() {
+    return this.toastsSeen;
   }
 
   /** E2Eテスト用に、席の一覧（空いているか）を返す */
