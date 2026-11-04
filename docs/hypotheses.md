@@ -34,11 +34,15 @@ PoCで答えを出したい問いは2つ。
 | イベント | いつ | プロパティ |
 |---|---|---|
 | `page_view` | 画面を開いた | 流入元（utm_*） |
-| `room_joined` | 入店した | 店内人数 |
+| `room_joined` | 入店した | 店内人数・ひとこと札の数・選んだキャラ |
 | `chat_sent` | 発言した | 文字数・何回目か（本文は送らない） |
 | `emote_sent` | 反応（わかる／笑／へぇ）を付けた | 種類 |
 | `seat_taken` | 席に座った | 席の種類（カウンター／テーブル） |
-| `room_left` | 退店した | 滞在秒数 |
+| `room_left` | 退店した | 滞在秒数・どう出たか（checkout＝お会計／close＝タブを閉じた／lost＝接続が切れた） |
+| `exit_survey` | お会計で「また来たい？」に答えた | 選んだ答え（また来たい／どちらでもない／たぶん来ない） |
+| `toast_sent` | 🍻乾杯を押した | — |
+| `topic_viewed` | 掲示板の「今日のお題」を開いた | — |
+| `keep_bottle_clicked` | キープボトル（500円）の決済画面を開いた | — |
 | `paywall_clicked` | 常連パスを押した | — |
 | `paywall_answered` | 「いくらなら入りますか？」に答えた | 選んだ答え |
 | `waitlist_clicked` | 事前登録フォームを開いた | どこから（常連パス／準備中画面） |
@@ -47,6 +51,7 @@ PoCで答えを出したい問いは2つ。
 | `closed_page_view` | 営業時間外に来た | 入店禁止が有効か |
 
 事前登録の件数（H5）は、フォーム側の回答数で数える（`waitlist_clicked` は開いた数）。
+キープボトルの購入数（H6'）はStripeの支払い件数で数える（`keep_bottle_clicked` は決済画面を開いた数。手順は [keep-bottle.md](./keep-bottle.md)）。
 招待から来た人は、`page_view` の `utm_source=invite` で数える。
 
 ## 定性調査

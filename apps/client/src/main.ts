@@ -87,7 +87,7 @@ showEntrance(
     saveProfile(profile);
     const scene = await sceneReady;
     // 計測：入店した時点の店内人数（自分を含む）。最初の人数が届いたときに一度だけ送る
-    game.events.once("guests", (count: number) => track("room_joined", { guests: count, tags: profile.tags.length }));
+    game.events.once("guests", (count: number) => track("room_joined", { guests: count, tags: profile.tags.length, look: profile.look }));
     scene.enterRoom(room);
     const joinedAt = Date.now();
 
